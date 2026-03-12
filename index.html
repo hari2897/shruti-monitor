@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shruti Monitor – Indian Classical Music Pitch Tracker</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Hind:wght@400;500;600;700&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+
+        <!-- ═══ TOP BAR: Brand + Live Pitch + Start ═══ -->
+        <header class="top-bar">
+            <div class="logo">
+                <h1>Shruti Monitor</h1>
+                <p>Just Intonation Pitch Tracker</p>
+            </div>
+
+            <div class="status-indicator">
+                <span id="pitchDisplay">-- Hz</span>
+                <span id="swaraDisplay">--</span>
+                <span id="deviationDisplay"></span>
+            </div>
+
+            <div class="top-actions">
+                <button id="startButton" class="btn-primary">Start Microphone</button>
+            </div>
+        </header>
+
+        <!-- ═══ TOOLBAR: Organised Control Panels ═══ -->
+        <nav class="toolbar">
+
+            <!-- Panel 1 – Pitch Setup -->
+            <div class="toolbar-panel">
+                <h3 class="panel-title">Pitch Setup</h3>
+                <div class="panel-body">
+
+                    <!-- Custom Pitch Picker Trigger -->
+                    <div class="control-group">
+                        <label>Base Sa (Tonic)</label>
+                        <button class="pitch-picker-trigger" id="pitchPickerTrigger" type="button">
+                            <span id="pitchPickerLabel">C4 – 261.63 Hz</span>
+                            <svg width="10" height="6" viewBox="0 0 10 6"><path d="M0 0l5 6 5-6z" fill="currentColor"/></svg>
+                        </button>
+                        <input type="hidden" id="saFreq" value="261.63">
+                    </div>
+
+                    <div class="control-group">
+                        <label for="smoothing">Smoothing</label>
+                        <input type="range" id="smoothing" min="0" max="0.99" step="0.01" value="0.8">
+                    </div>
+                    <div class="control-group">
+                        <label for="zoom">Vertical Zoom</label>
+                        <input type="range" id="zoom" min="0.2" max="2.0" step="0.1" value="1.2">
+                    </div>
+                </div>
+            </div>
+
+            <div class="toolbar-divider"></div>
+
+            <!-- Panel 2 – Raga Selection -->
+            <div class="toolbar-panel">
+                <h3 class="panel-title">Raga</h3>
+                <div class="panel-body">
+                    <div class="control-group">
+                        <label for="systemSelect">Paddhati</label>
+                        <select id="systemSelect">
+                            <option value="none">All Swaras</option>
+                            <option value="hindustani">Hindustani</option>
+                            <option value="carnatic">Carnatic</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="ragaSearch">Search</label>
+                        <input type="text" id="ragaSearch" placeholder="Type raga name…" disabled>
+                    </div>
+                    <div class="control-group">
+                        <label for="ragaSelect">Select Raga</label>
+                        <select id="ragaSelect" disabled>
+                            <option value="none">—</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="toolbar-divider"></div>
+
+            <!-- Panel 3 – Tanpura Drone -->
+            <div class="toolbar-panel">
+                <h3 class="panel-title">Tanpura</h3>
+                <div class="panel-body">
+                    <div class="control-group">
+                        <label class="toggle-label">
+                            <input type="checkbox" id="tanpuraToggle">
+                            <span>Enable Drone</span>
+                        </label>
+                    </div>
+                    <div class="control-group">
+                        <label for="tanpuraString">Jhala String</label>
+                        <select id="tanpuraString" disabled>
+                            <option value="P">Pancham (Pa)</option>
+                            <option value="M">Madhyam (Ma)</option>
+                            <option value="N">Nishad (Ni)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="toolbar-divider"></div>
+
+            <!-- Panel 4 – Session -->
+            <div class="toolbar-panel">
+                <h3 class="panel-title">Session</h3>
+                <div class="panel-body">
+                    <button id="recordButton" class="btn-secondary" disabled>⏺ Record</button>
+                    <button id="playButton" class="btn-secondary" disabled>▶ Play</button>
+                    <audio id="playbackAudio" style="display: none;"></audio>
+                </div>
+            </div>
+        </nav>
+
+        <!-- ═══ SHRUTI PETTI BAR ═══ -->
+        <div class="shruti-petti-bar" id="shrutiPettiBar">
+            <span class="shruti-petti-label">Shruti Petti</span>
+            <div class="shruti-petti-buttons" id="shrutiPettiButtons">
+                <!-- Dynamically populated by JS -->
+            </div>
+        </div>
+
+        <!-- ═══ MAIN CANVAS ═══ -->
+        <main class="canvas-container">
+            <canvas id="pitchCanvas"></canvas>
+            <div class="y-axis-labels" id="yAxisLabels">
+                <!-- Injected via JS -->
+            </div>
+        </main>
+
+        <!-- ═══ PIANO KEYBOARD ═══ -->
+        <div class="keyboard-section" id="keyboardSection">
+            <div class="keyboard-info" id="keyboardInfo">
+                <span class="keyboard-note" id="keyboardNote">--</span>
+                <span class="keyboard-swara" id="keyboardSwara">--</span>
+            </div>
+            <div class="keyboard-scroll">
+                <div class="keyboard" id="pianoKeyboard">
+                    <!-- Keys injected by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ PITCH PICKER MODAL ═══ -->
+    <div class="modal-backdrop" id="pitchModalBackdrop">
+        <div class="modal-content" id="pitchModal">
+            <div class="modal-header">
+                <h2 class="modal-title">Select Base Sa</h2>
+                <button class="modal-close" id="pitchModalClose" type="button">✕</button>
+            </div>
+            <div class="octave-tabs" id="octaveTabs">
+                <!-- Octave buttons injected by JS -->
+            </div>
+            <div class="note-grid" id="noteGrid">
+                <!-- Note buttons injected by JS -->
+            </div>
+        </div>
+    </div>
+
+    <script src="carnatic_data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
