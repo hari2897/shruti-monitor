@@ -96,13 +96,20 @@ let MAX_RATIO_LOG2 = 1.2;
 function resizeCanvas() {
     canvasWidth = window.innerWidth;
     const topBar = document.querySelector('.top-bar');
-    const toolbar = document.querySelector('.toolbar');
-    const shrutiBar = document.getElementById('shrutiPettiBar');
     const keyboardSec = document.getElementById('keyboardSection');
-    const usedHeight = (topBar ? topBar.offsetHeight : 0) 
-                     + (toolbar ? toolbar.offsetHeight : 0) 
-                     + (shrutiBar ? shrutiBar.offsetHeight : 0)
-                     + (keyboardSec ? keyboardSec.offsetHeight : 0);
+    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+
+    let usedHeight = (topBar ? topBar.offsetHeight : 0)
+                   + (keyboardSec ? keyboardSec.offsetHeight : 0);
+
+    // On desktop, toolbar and shruti bar are inline and take up space
+    if (!isMobile) {
+        const toolbar = document.querySelector('.toolbar');
+        const shrutiBar = document.getElementById('shrutiPettiBar');
+        usedHeight += (toolbar ? toolbar.offsetHeight : 0)
+                    + (shrutiBar ? shrutiBar.offsetHeight : 0);
+    }
+
     canvasHeight = window.innerHeight - usedHeight;
     
     // Handle High DPI displays
@@ -1473,6 +1480,42 @@ function updateKeyboard(pitch, saFreq) {
 
 // Update swara markers when Sa changes
 saFreqInput.addEventListener('change', updateSwaraMarkers);
+
+// ═══ Controls Drawer Toggle (Mobile) ═══
+(function initDrawer() {
+    const settingsToggle = document.getElementById('settingsToggle');
+    const drawer = document.getElementById('controlsDrawer');
+    const backdrop = document.getElementById('drawerBackdrop');
+
+    function openDrawer() {
+        drawer.classList.add('open');
+        backdrop.classList.add('open');
+        settingsToggle.classList.add('active');
+    }
+
+    function closeDrawer() {
+        drawer.classList.remove('open');
+        backdrop.classList.remove('open');
+        settingsToggle.classList.remove('active');
+    }
+
+    function toggleDrawer() {
+        if (drawer.classList.contains('open')) {
+            closeDrawer();
+        } else {
+            openDrawer();
+        }
+    }
+
+    settingsToggle.addEventListener('click', toggleDrawer);
+    backdrop.addEventListener('click', closeDrawer);
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && drawer.classList.contains('open')) {
+            closeDrawer();
+        }
+    });
+})();
 
 // ═══ Initial Setup ═══
 resizeCanvas();

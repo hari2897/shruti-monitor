@@ -28,105 +28,119 @@
             </div>
         </header>
 
-        <!-- ═══ TOOLBAR: Organised Control Panels ═══ -->
-        <nav class="toolbar">
+        <!-- ═══ CONTROLS DRAWER (mobile: slide-up overlay / desktop: inline) ═══ -->
+        <div class="controls-drawer-backdrop" id="drawerBackdrop"></div>
+        <div class="controls-drawer" id="controlsDrawer">
+            <div class="drawer-handle" id="drawerHandle"><span></span></div>
 
-            <!-- Panel 1 – Pitch Setup -->
-            <div class="toolbar-panel">
-                <h3 class="panel-title">Pitch Setup</h3>
-                <div class="panel-body">
+            <!-- ═══ TOOLBAR: Organised Control Panels ═══ -->
+            <nav class="toolbar">
 
-                    <!-- Custom Pitch Picker Trigger -->
-                    <div class="control-group">
-                        <label>Base Sa (Tonic)</label>
-                        <button class="pitch-picker-trigger" id="pitchPickerTrigger" type="button">
-                            <span id="pitchPickerLabel">C4 – 261.63 Hz</span>
-                            <svg width="10" height="6" viewBox="0 0 10 6"><path d="M0 0l5 6 5-6z" fill="currentColor"/></svg>
-                        </button>
-                        <input type="hidden" id="saFreq" value="261.63">
-                    </div>
+                <!-- Panel 1 – Pitch Setup -->
+                <div class="toolbar-panel">
+                    <h3 class="panel-title">Pitch Setup</h3>
+                    <div class="panel-body">
 
-                    <div class="control-group">
-                        <label for="smoothing">Smoothing</label>
-                        <input type="range" id="smoothing" min="0" max="0.99" step="0.01" value="0.8">
-                    </div>
-                    <div class="control-group">
-                        <label for="zoom">Vertical Zoom</label>
-                        <input type="range" id="zoom" min="0.2" max="2.0" step="0.1" value="1.2">
-                    </div>
-                </div>
-            </div>
+                        <!-- Custom Pitch Picker Trigger -->
+                        <div class="control-group">
+                            <label>Base Sa (Tonic)</label>
+                            <button class="pitch-picker-trigger" id="pitchPickerTrigger" type="button">
+                                <span id="pitchPickerLabel">C4 – 261.63 Hz</span>
+                                <svg width="10" height="6" viewBox="0 0 10 6"><path d="M0 0l5 6 5-6z" fill="currentColor"/></svg>
+                            </button>
+                            <input type="hidden" id="saFreq" value="261.63">
+                        </div>
 
-            <div class="toolbar-divider"></div>
-
-            <!-- Panel 2 – Raga Selection -->
-            <div class="toolbar-panel">
-                <h3 class="panel-title">Raga</h3>
-                <div class="panel-body">
-                    <div class="control-group">
-                        <label for="systemSelect">Paddhati</label>
-                        <select id="systemSelect">
-                            <option value="none">All Swaras</option>
-                            <option value="hindustani">Hindustani</option>
-                            <option value="carnatic">Carnatic</option>
-                        </select>
-                    </div>
-                    <div class="control-group">
-                        <label for="ragaSearch">Search</label>
-                        <input type="text" id="ragaSearch" placeholder="Type raga name…" disabled>
-                    </div>
-                    <div class="control-group">
-                        <label for="ragaSelect">Select Raga</label>
-                        <select id="ragaSelect" disabled>
-                            <option value="none">—</option>
-                        </select>
+                        <div class="control-group">
+                            <label for="smoothing">Smoothing</label>
+                            <input type="range" id="smoothing" min="0" max="0.99" step="0.01" value="0.8">
+                        </div>
+                        <div class="control-group">
+                            <label for="zoom">Vertical Zoom</label>
+                            <input type="range" id="zoom" min="0.2" max="2.0" step="0.1" value="1.2">
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="toolbar-divider"></div>
+                <div class="toolbar-divider"></div>
 
-            <!-- Panel 3 – Tanpura Drone -->
-            <div class="toolbar-panel">
-                <h3 class="panel-title">Tanpura</h3>
-                <div class="panel-body">
-                    <div class="control-group">
-                        <label class="toggle-label">
-                            <input type="checkbox" id="tanpuraToggle">
-                            <span>Enable Drone</span>
-                        </label>
-                    </div>
-                    <div class="control-group">
-                        <label for="tanpuraString">Jhala String</label>
-                        <select id="tanpuraString" disabled>
-                            <option value="P">Pancham (Pa)</option>
-                            <option value="M">Madhyam (Ma)</option>
-                            <option value="N">Nishad (Ni)</option>
-                        </select>
+                <!-- Panel 2 – Raga Selection -->
+                <div class="toolbar-panel">
+                    <h3 class="panel-title">Raga</h3>
+                    <div class="panel-body">
+                        <div class="control-group">
+                            <label for="systemSelect">Paddhati</label>
+                            <select id="systemSelect">
+                                <option value="none">All Swaras</option>
+                                <option value="hindustani">Hindustani</option>
+                                <option value="carnatic">Carnatic</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label for="ragaSearch">Search</label>
+                            <input type="text" id="ragaSearch" placeholder="Type raga name…" disabled>
+                        </div>
+                        <div class="control-group">
+                            <label for="ragaSelect">Select Raga</label>
+                            <select id="ragaSelect" disabled>
+                                <option value="none">—</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="toolbar-divider"></div>
+                <div class="toolbar-divider"></div>
 
-            <!-- Panel 4 – Session -->
-            <div class="toolbar-panel">
-                <h3 class="panel-title">Session</h3>
-                <div class="panel-body">
-                    <button id="recordButton" class="btn-secondary" disabled>⏺ Record</button>
-                    <button id="playButton" class="btn-secondary" disabled>▶ Play</button>
-                    <audio id="playbackAudio" style="display: none;"></audio>
+                <!-- Panel 3 – Tanpura Drone -->
+                <div class="toolbar-panel">
+                    <h3 class="panel-title">Tanpura</h3>
+                    <div class="panel-body">
+                        <div class="control-group">
+                            <label class="toggle-label">
+                                <input type="checkbox" id="tanpuraToggle">
+                                <span>Enable Drone</span>
+                            </label>
+                        </div>
+                        <div class="control-group">
+                            <label for="tanpuraString">Jhala String</label>
+                            <select id="tanpuraString" disabled>
+                                <option value="P">Pancham (Pa)</option>
+                                <option value="M">Madhyam (Ma)</option>
+                                <option value="N">Nishad (Ni)</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </nav>
 
-        <!-- ═══ SHRUTI PETTI BAR ═══ -->
-        <div class="shruti-petti-bar" id="shrutiPettiBar">
-            <span class="shruti-petti-label">Shruti Petti</span>
-            <div class="shruti-petti-buttons" id="shrutiPettiButtons">
-                <!-- Dynamically populated by JS -->
+                <div class="toolbar-divider"></div>
+
+                <!-- Panel 4 – Session -->
+                <div class="toolbar-panel">
+                    <h3 class="panel-title">Session</h3>
+                    <div class="panel-body">
+                        <button id="recordButton" class="btn-secondary" disabled>⏺ Record</button>
+                        <button id="playButton" class="btn-secondary" disabled>▶ Play</button>
+                        <audio id="playbackAudio" style="display: none;"></audio>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- ═══ SHRUTI PETTI BAR ═══ -->
+            <div class="shruti-petti-bar" id="shrutiPettiBar">
+                <span class="shruti-petti-label">Shruti Petti</span>
+                <div class="shruti-petti-buttons" id="shrutiPettiButtons">
+                    <!-- Dynamically populated by JS -->
+                </div>
             </div>
         </div>
+
+        <!-- ═══ FLOATING SETTINGS BUTTON (mobile only) ═══ -->
+        <button class="settings-toggle" id="settingsToggle" type="button" aria-label="Open Settings">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+        </button>
 
         <!-- ═══ MAIN CANVAS ═══ -->
         <main class="canvas-container">
