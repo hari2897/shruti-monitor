@@ -18,9 +18,13 @@
             </div>
 
             <div class="status-indicator">
-                <span id="pitchDisplay">-- Hz</span>
-                <span id="swaraDisplay">--</span>
-                <span id="deviationDisplay"></span>
+                <div id="swaraAbbr" class="swara-abbr">--</div>
+                <div id="swaraName" class="swara-name">&nbsp;</div>
+                <div id="swaraOctave" class="swara-octave">&nbsp;</div>
+                <div class="pitch-meta">
+                    <span id="deviationDisplay"></span>
+                    <span id="pitchDisplay">-- Hz</span>
+                </div>
             </div>
 
             <div class="top-actions">
@@ -59,6 +63,12 @@
                             <label for="zoom">Vertical Zoom</label>
                             <input type="range" id="zoom" min="0.2" max="2.0" step="0.1" value="1.2">
                         </div>
+                        <div class="control-group">
+                            <label class="toggle-label">
+                                <input type="checkbox" id="autoScrollToggle">
+                                <span>Auto-Follow Voice</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
 
@@ -69,11 +79,11 @@
                     <h3 class="panel-title">Raga</h3>
                     <div class="panel-body">
                         <div class="control-group">
-                            <label for="systemSelect">Paddhati</label>
+                            <label for="systemSelect">Nomenclature & Ragas</label>
                             <select id="systemSelect">
-                                <option value="none">All Swaras</option>
-                                <option value="hindustani">Hindustani</option>
+                                <option value="hindustani" selected>Hindustani</option>
                                 <option value="carnatic">Carnatic</option>
+                                <option value="none">All Swaras (Hindustani)</option>
                             </select>
                         </div>
                         <div class="control-group">
@@ -146,7 +156,9 @@
         <main class="canvas-container">
             <canvas id="pitchCanvas"></canvas>
             <div class="y-axis-labels" id="yAxisLabels">
-                <!-- Injected via JS -->
+                <div id="yAxisLabelsInner">
+                    <!-- Injected via JS -->
+                </div>
             </div>
         </main>
 

@@ -60,6 +60,7 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 0.6rem 1.5rem;
+    height: 95px; /* Increased from 75px to fit 4-line pitch display */
     background: var(--glass-bg);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
@@ -92,31 +93,53 @@ body {
     align-items: center;
     justify-content: center;
     min-width: 140px;
+    max-width: 48vw; /* Prevent from overflowing the center space */
+    overflow: hidden;
 }
 
-#pitchDisplay {
-    font-size: 0.85rem;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    color: var(--text-muted);
-}
-
-#swaraDisplay {
+.swara-abbr {
     font-family: 'Cinzel', serif;
-    font-size: 2.4rem;
+    font-size: 2.2rem;
     color: var(--gold);
     font-weight: 700;
     line-height: 1;
-    margin: 0.1rem 0;
+    margin-bottom: 0.15rem;
     text-shadow: 0 0 24px var(--gold-glow), 0 0 48px rgba(251, 191, 36, 0.12);
 }
 
-#deviationDisplay {
+.swara-name {
+    font-family: 'Hind', sans-serif;
     font-size: 0.85rem;
+    color: var(--saffron-light);
+    font-weight: 600;
+    line-height: 1.1;
+    width: 100%;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.swara-octave {
+    font-family: 'Hind', sans-serif;
+    font-size: 0.65rem;
+    color: var(--text-label);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    line-height: 1.2;
+    margin-bottom: 0.2rem;
+    min-height: 0.78rem; /* keep height even if empty */
+}
+
+.pitch-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     color: var(--text-muted);
-    min-height: 1.1rem;
 }
 
 .top-actions {
@@ -635,6 +658,16 @@ input[type="range"]::-moz-range-thumb {
     width: 40px;
     height: 100%;
     pointer-events: none;
+    overflow: hidden;
+}
+
+#yAxisLabelsInner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    will-change: transform;
 }
 
 .swara-label {
@@ -926,10 +959,7 @@ input[type="range"]::-moz-range-thumb {
         gap: 0;
     }
 
-    #swaraDisplay {
-        font-size: 1.8rem;
-        line-height: 1.1;
-    }
+
 
     #pitchDisplay {
         font-size: 0.7rem;
@@ -1230,9 +1260,7 @@ input[type="range"]::-moz-range-thumb {
         padding: 0.5rem 1rem;
     }
 
-    #swaraDisplay {
-        font-size: 2rem;
-    }
+
 
     .toolbar-panel {
         padding: 0.5rem 0.8rem;
@@ -1262,9 +1290,7 @@ input[type="range"]::-moz-range-thumb {
    ═══════════════════════════════════════════════════════════════ */
 
 @media (max-width: 380px) {
-    #swaraDisplay {
-        font-size: 1.5rem;
-    }
+
 
     .btn-primary {
         padding: 0.45rem 0.6rem;

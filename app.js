@@ -7,10 +7,13 @@ const startButton = document.getElementById('startButton');
 const saFreqInput = document.getElementById('saFreq');
 const smoothingInput = document.getElementById('smoothing');
 const zoomInput = document.getElementById('zoom');
+const swaraAbbr = document.getElementById('swaraAbbr');
+const swaraName = document.getElementById('swaraName');
+const swaraOctave = document.getElementById('swaraOctave');
 const pitchDisplay = document.getElementById('pitchDisplay');
-const swaraDisplay = document.getElementById('swaraDisplay');
 const deviationDisplay = document.getElementById('deviationDisplay');
-const yAxisLabels = document.getElementById('yAxisLabels');
+const yAxisLabelsInner = document.getElementById('yAxisLabelsInner');
+const autoScrollToggle = document.getElementById('autoScrollToggle');
 
 const systemSelect = document.getElementById('systemSelect');
 const ragaSearch = document.getElementById('ragaSearch');
@@ -30,17 +33,23 @@ let dataArray;
 let isRecording = false;
 let useWorklet = false; // true if AudioWorklet is active
 let pitchWorkletNode = null;
-let workletDetection = { pitch: -1, confidence: 0 }; // Latest result from worklet
+let workletDetection = { pitch: -1, confidence: 0, timestamp: 0 }; // Latest result from worklet
+let lastProcessedTimestamp = 0;
 
 // Visualization & State
 let animationId;
 const pitchHistory = []; // stores { pitch, time }
 let smoothedPitch = null;
 let silenceTimer = 0; // ms since last voiced detection
+let octaveErrorCount = 0; // frames of consecutive massive jumps
 let canvasWidth, canvasHeight;
 
 // Maximum time window visible on screen (ms)
 const TIME_WINDOW_MS = 5000;
+
+// Auto-Scroll State
+let currentYOffsetLog2 = 0;
+let targetYOffsetLog2 = 0;
 
 // Tanpura State
 let isTanpuraPlaying = false;
@@ -52,20 +61,67 @@ let activeSwaraBtn = null;
 
 // Just Intonation Ratios for ICM Swaras
 const SWARAS = [
-    { name: "S",  fullName: "Sa",           ratio: 1/1 },
-    { name: "r",  fullName: "Komal Re",     ratio: 16/15 },
-    { name: "R",  fullName: "Shuddh Re",    ratio: 9/8 },
-    { name: "g",  fullName: "Komal Ga",     ratio: 6/5 },
-    { name: "G",  fullName: "Shuddh Ga",    ratio: 5/4 },
-    { name: "m",  fullName: "Shuddh Ma",    ratio: 4/3 },
-    { name: "M",  fullName: "Tivra Ma",     ratio: 45/32 },
-    { name: "P",  fullName: "Pa",           ratio: 3/2 },
-    { name: "d",  fullName: "Komal Dha",    ratio: 8/5 },
-    { name: "D",  fullName: "Shuddh Dha",   ratio: 5/3 },
-    { name: "n",  fullName: "Komal Ni",     ratio: 9/5 },
-    { name: "N",  fullName: "Shuddh Ni",    ratio: 15/8 },
-    { name: "S'", fullName: "Taar Sa",      ratio: 2/1 }
+    { id: "S",  ratio: 1/1 },
+    { id: "r",  ratio: 16/15 },
+    { id: "R",  ratio: 9/8 },
+    { id: "g",  ratio: 6/5 },
+    { id: "G",  ratio: 5/4 },
+    { id: "m",  ratio: 4/3 },
+    { id: "M",  ratio: 45/32 },
+    { id: "P",  ratio: 3/2 },
+    { id: "d",  ratio: 8/5 },
+    { id: "D",  ratio: 5/3 },
+    { id: "n",  ratio: 9/5 },
+    { id: "N",  ratio: 15/8 },
+    { id: "S'", ratio: 2/1 }
 ];
+
+// Swara Nomenclature Mapping
+const SWARA_LABELS = {
+    hindustani: {
+        "S": { full: "Sa", short: "S" },
+        "r": { full: "Komal Re", short: "r" },
+        "R": { full: "Shuddh Re", short: "R" },
+        "g": { full: "Komal Ga", short: "g" },
+        "G": { full: "Shuddh Ga", short: "G" },
+        "m": { full: "Shuddh Ma", short: "m" },
+        "M": { full: "Tivra Ma", short: "M" },
+        "P": { full: "Pa", short: "P" },
+        "d": { full: "Komal Dha", short: "d" },
+        "D": { full: "Shuddh Dha", short: "D" },
+        "n": { full: "Komal Ni", short: "n" },
+        "N": { full: "Shuddh Ni", short: "N" },
+        "S'": { full: "Taar Sa", short: "S'" }
+    },
+    carnatic: {
+        "S": { full: "Shadjam (S)", short: "S" },
+        "r": { full: "Shuddha Rishabham (R1)", short: "R1" },
+        "R": { full: "Chatushruti Rishabham (R2)", short: "R2" },
+        "g": { full: "Sadharana Gandharam (G2)", short: "G2" },
+        "G": { full: "Antara Gandharam (G3)", short: "G3" },
+        "m": { full: "Shuddha Madhyamam (M1)", short: "M1" },
+        "M": { full: "Prati Madhyamam (M2)", short: "M2" },
+        "P": { full: "Panchamam (P)", short: "P" },
+        "d": { full: "Shuddha Dhaivatam (D1)", short: "D1" },
+        "D": { full: "Chatushruti Dhaivatam (D2)", short: "D2" },
+        "n": { full: "Kaisiki Nishadam (N2)", short: "N2" },
+        "N": { full: "Kakali Nishadam (N3)", short: "N3" },
+        "S'": { full: "Taar Shadjam (S')", short: "S'" }
+    }
+};
+
+function getSystemMode() {
+    // If 'none' (All Swaras) is selected, default to hindustani nomenclature
+    const mode = systemSelect.value;
+    return mode === 'carnatic' ? 'carnatic' : 'hindustani';
+}
+
+function getSwaraName(baseId, useShort = false) {
+    const mode = getSystemMode();
+    const entry = SWARA_LABELS[mode][baseId];
+    if (!entry) return baseId;
+    return useShort ? entry.short : entry.full;
+}
 
 // Raga Definitions
 const RAGAS = {
@@ -118,43 +174,60 @@ function resizeCanvas() {
     canvas.height = canvasHeight * dpr;
     ctx.scale(dpr, dpr);
     
+    
     drawGrid(); // Redraw static grid labels
+    generateLabels(); // Regenerate HTML labels so they snap to the matched layout
 }
 
 window.addEventListener('resize', resizeCanvas);
 
-// Pitch mapping function (Ratio to Y coordinate)
-function ratioToY(ratio) {
-    const val = Math.log2(ratio);
-    // Map between MIN_RATIO_LOG2 (bottom) and MAX_RATIO_LOG2 (top)
-    const normalized = (val - MIN_RATIO_LOG2) / (MAX_RATIO_LOG2 - MIN_RATIO_LOG2);
-    // Invert because Canvas Y is 0 at top
+// Bind a ResizeObserver directly to the canvas-container to strictly lock Y-axis labels to rendering height
+const canvasObserver = new ResizeObserver(() => {
+    // Only resize if height physically changed
+    const container = document.querySelector('.canvas-container');
+    if (container && container.offsetHeight !== canvasHeight) {
+        resizeCanvas();
+    }
+});
+canvasObserver.observe(document.querySelector('.canvas-container'));
+
+// Pitch mapping function (Raw physical pixels from static bounds)
+function ratioToYRaw(log2Value) {
+    const normalized = (log2Value - MIN_RATIO_LOG2) / (MAX_RATIO_LOG2 - MIN_RATIO_LOG2);
     return canvasHeight - (normalized * canvasHeight);
+}
+
+// Dynamic Pitch mapping function (Applies camera offset)
+function ratioToY(ratio) {
+    const val = Math.log2(ratio) - currentYOffsetLog2;
+    return ratioToYRaw(val);
 }
 
 // Generate Y-axis Labels
 function generateLabels() {
-    yAxisLabels.innerHTML = '';
+    yAxisLabelsInner.innerHTML = '';
     
-    // Plot Lower Octave Swaras
-    SWARAS.forEach(swara => {
-        const ratio = swara.ratio / 2; // Lower Octave
-        if (Math.log2(ratio) >= MIN_RATIO_LOG2) {
-            createLabel(swara.name + '.', ratioToY(ratio), swara.name);
-        }
-    });
-
-    // Plot Middle Octave Swaras
-    SWARAS.forEach(swara => {
-        createLabel(swara.name, ratioToY(swara.ratio), swara.name, swara.name === "S");
-    });
-
-    // Plot Upper Octave Swaras
-    SWARAS.forEach(swara => {
-        const ratio = swara.ratio * 2; // Upper octave
-        if (Math.log2(ratio) <= MAX_RATIO_LOG2 && swara.name !== "S'") { 
-            createLabel(swara.name + "'", ratioToY(ratio), swara.name);
-        }
+    // Expand rendered range to avoid running out of labels during scrolling
+    // Octaves from -3 to +3
+    const renderOctaves = [-3, -2, -1, 0, 1, 2, 3];
+    
+    renderOctaves.forEach(octave => {
+        SWARAS.forEach(swara => {
+            if (swara.id === "S'" && octave !== 0) return; // Dedupe upper Sa
+            
+            const ratio = swara.ratio * Math.pow(2, octave);
+            const logRatio = Math.log2(ratio);
+            
+            // Only create label if it's within a very wide bounds (to avoid thousands of nodes)
+            if (logRatio >= -4 && logRatio <= 4) {
+                let displayName = getSwaraName(swara.id, true);
+                if (octave < 0) displayName += '.'.repeat(Math.abs(octave));
+                if (octave > 0) displayName += "'".repeat(octave);
+                
+                // Position physically without considering camera offset, offset happens via CSS translate
+                createLabel(displayName, ratioToYRaw(logRatio), swara.id, swara.id === "S" && octave === 0);
+            }
+        });
     });
 }
 
@@ -162,17 +235,15 @@ function createLabel(displayName, yPos, baseName, isSa = false) {
     // Check if Swara is valid in current Raga
     const isValid = currentRagaLayout === null || currentRagaLayout.includes(baseName);
     
-    if (yPos >= 0 && yPos <= canvasHeight) {
-        const span = document.createElement('span');
-        let className = 'swara-label';
-        if (isSa) className += ' is-sa';
-        if (!isValid) className += ' varjit';
-        
-        span.className = className;
-        span.textContent = displayName;
-        span.style.top = `${yPos}px`;
-        yAxisLabels.appendChild(span);
-    }
+    const span = document.createElement('span');
+    let className = 'swara-label';
+    if (isSa) className += ' is-sa';
+    if (!isValid) className += ' varjit';
+    
+    span.className = className;
+    span.textContent = displayName;
+    span.style.top = `${yPos}px`;
+    yAxisLabelsInner.appendChild(span);
 }
 
 // ═══ McLeod Pitch Method (NSDF-based) ═══
@@ -296,7 +367,7 @@ function drawGrid() {
     [-1, 0, 1].forEach(octave => {
         SWARAS.forEach(swara => {
             let ratio = swara.ratio * Math.pow(2, octave);
-            drawLine(ratio, swara.name, swara.name === "S");
+            drawLine(ratio, swara.id, swara.id === "S");
         });
     });
 }
@@ -367,26 +438,31 @@ class PitchKalmanFilter {
 const kalmanFilter = new PitchKalmanFilter();
 
 // ═══ Swara Hysteresis State ═══
-let currentSwaraName = '--';
+let currentSwaraKey = '--';
 let currentSwaraRatioLog = 0;
-let pendingSwaraName = null;
-let pendingSwaraTime = 0;
-const HYSTERESIS_CENTS = 40;   // Must deviate >40 cents to switch
-const HYSTERESIS_HOLD_MS = 80; // New note must be stable for 80ms
+let currentSwaraObj = null;
+let currentOctave = 0;
+
+let pendingSwaraKey = null;
+const HYSTERESIS_LOG2 = 25 / 1200; // 25 cents spatial hysteresis band
 
 function updateClosestSwara(pitch, saFreq) {
     if (pitch === -1) {
-        swaraDisplay.textContent = '--';
+        swaraAbbr.textContent = '--';
+        swaraName.innerHTML = '&nbsp;';
+        swaraOctave.innerHTML = '&nbsp;';
         deviationDisplay.textContent = '';
-        currentSwaraName = '--';
-        pendingSwaraName = null;
+        currentSwaraKey = '--';
+        currentSwaraObj = null;
+        pendingSwaraKey = null;
         return;
     }
     
     // Find closest ratio across typical octaves
-    const detectionSwaras = SWARAS.filter(s => s.name !== "S'");
+    const detectionSwaras = SWARAS.filter(s => s.id !== "S'");
     const currentRatioLog = Math.log2(pitch / saFreq);
-    let closestSwara = '';
+    let closestSwaraObj = null;
+    let closestOctave = 0;
     let closestRatioLog = 0;
     let minDiff = Infinity;
 
@@ -397,45 +473,58 @@ function updateClosestSwara(pitch, saFreq) {
             if (diff < minDiff) {
                 minDiff = diff;
                 closestRatioLog = ratioLog;
-                if (octave === -1) {
-                    closestSwara = 'Mandra ' + swara.fullName;
-                } else if (octave === 1) {
-                    closestSwara = 'Taar ' + swara.fullName;
-                } else {
-                    closestSwara = swara.fullName;
-                }
+                closestSwaraObj = swara;
+                closestOctave = octave;
             }
         });
     });
 
-    // Hysteresis: only switch displayed swara if the new one is
-    // sufficiently far from the current target AND has been stable
-    const deviationCents = (currentRatioLog - closestRatioLog) * 1200;
-    const deviationFromCurrent = Math.abs((currentRatioLog - currentSwaraRatioLog) * 1200);
-    const now = performance.now();
-    
-    if (closestSwara !== currentSwaraName) {
-        if (deviationFromCurrent > HYSTERESIS_CENTS) {
-            // Start timing the new candidate
-            if (pendingSwaraName !== closestSwara) {
-                pendingSwaraName = closestSwara;
-                pendingSwaraTime = now;
-            }
-            // Switch only after hold time
-            if (now - pendingSwaraTime >= HYSTERESIS_HOLD_MS) {
-                currentSwaraName = closestSwara;
+    const closestKey = closestSwaraObj ? `${closestSwaraObj.id}_${closestOctave}` : '--';
+
+    // Spatial Hysteresis: only switch displayed swara if the new mathematical 
+    // closest note is at least 25 cents CLOSER than our current locked note.
+    // This perfectly allows following fast gamakas without time-delay lag, 
+    // while completely eliminating boundary flickering.
+    if (currentSwaraKey !== '--') {
+        const diffToCurrent = Math.abs(currentRatioLog - currentSwaraRatioLog);
+        const diffToClosest = minDiff;
+        
+        if (closestKey !== currentSwaraKey) {
+            if (diffToCurrent > diffToClosest + HYSTERESIS_LOG2) {
+                // Switch! The new note is significantly closer
+                currentSwaraKey = closestKey;
+                currentSwaraObj = closestSwaraObj;
+                currentOctave = closestOctave;
                 currentSwaraRatioLog = closestRatioLog;
-                pendingSwaraName = null;
             }
-        } else {
-            pendingSwaraName = null; // Not far enough, cancel pending
         }
     } else {
-        pendingSwaraName = null;
-        currentSwaraRatioLog = closestRatioLog; // Track the exact position
+        // Initial lock
+        currentSwaraKey = closestKey;
+        currentSwaraObj = closestSwaraObj;
+        currentOctave = closestOctave;
+        currentSwaraRatioLog = closestRatioLog;
     }
     
-    swaraDisplay.textContent = currentSwaraName;
+    // UI Update - Split formatting into Abbr, Name, and Octave
+    if (currentSwaraObj) {
+        const fullStr = getSwaraName(currentSwaraObj.id, false);
+        const abbrStr = getSwaraName(currentSwaraObj.id, true);
+        
+        // Remove (R1) or similar abbreviation from the full name for clean display
+        const cleanName = fullStr.replace(/\s*\(.*\)/, '').trim();
+        
+        swaraAbbr.textContent = abbrStr;
+        swaraName.textContent = cleanName || abbrStr;
+        
+        if (currentOctave === -1) {
+            swaraOctave.textContent = 'MANDRA';
+        } else if (currentOctave === 1) {
+            swaraOctave.textContent = 'TAAR';
+        } else {
+            swaraOctave.innerHTML = '&nbsp;';
+        }
+    }
     
     // Calculate deviation from the currently displayed swara
     const displayDeviation = (currentRatioLog - currentSwaraRatioLog) * 1200;
@@ -460,52 +549,75 @@ function draw() {
     
     // Perform pitch detection
     // Prefer AudioWorklet result (updated asynchronously) over main-thread MPM
-    let detection;
+    let detection = null;
+    let isNewDetection = false;
+    
     if (useWorklet) {
-        detection = workletDetection;
-        // Consume it (set to no-pitch until next worklet message)
-        // But only reset if we actually got a real reading
+        if (workletDetection.timestamp !== lastProcessedTimestamp) {
+            detection = workletDetection;
+            lastProcessedTimestamp = workletDetection.timestamp;
+            isNewDetection = true;
+        }
     } else {
         // Fallback: run MPM on main thread via analyser
         analyser.getFloatTimeDomainData(dataArray);
         detection = detectPitchMPM(dataArray, audioContext.sampleRate);
+        isNewDetection = true;
     }
     
     const now = performance.now();
     
-    if (detection.pitch !== -1) {
-        const rawPitch = detection.pitch;
-        const confidence = detection.confidence;
-        
-        // Slider controls Kalman process noise (low = more smoothing, high = more responsive)
-        const sliderVal = parseFloat(smoothingInput.value); // 0..1, higher = smoother
-        kalmanFilter.Q_base = 0.5 + (1 - sliderVal) * 8; // 0.5 to 8.5
-        
-        if (!kalmanFilter.initialized) {
-            kalmanFilter.reset(rawPitch);
-            smoothedPitch = rawPitch;
-        } else {
-            // Octave jump detection — reset Kalman on large jumps
-            if (Math.abs(Math.log2(rawPitch / kalmanFilter.pitch)) > 0.5) {
+    if (isNewDetection) {
+        if (detection.pitch !== -1) {
+            const rawPitch = detection.pitch;
+            const confidence = detection.confidence;
+            
+            // Slider controls Kalman process noise (low = more smoothing, high = more responsive)
+            const sliderVal = parseFloat(smoothingInput.value); // 0..1, higher = smoother
+            kalmanFilter.Q_base = 0.5 + (1 - sliderVal) * 8; // 0.5 to 8.5
+            
+            if (!kalmanFilter.initialized) {
                 kalmanFilter.reset(rawPitch);
                 smoothedPitch = rawPitch;
+                octaveErrorCount = 0;
             } else {
-                // Gamaka-adaptive: increase Q during fast pitch changes
-                const pitchDelta = Math.abs(rawPitch - kalmanFilter.pitch);
-                const Q_scale = pitchDelta > 8 ? 3.0 : 1.0; // 3x process noise during gamakas
-                
-                kalmanFilter.predict(Q_scale);
-                smoothedPitch = kalmanFilter.update(rawPitch, confidence);
+                // Octave jump detection — reject sudden large jumps (likely MPM tracking errors)
+                if (Math.abs(Math.log2(rawPitch / kalmanFilter.pitch)) > 0.6) {
+                    octaveErrorCount++;
+                    if (octaveErrorCount > 4) { // Sustained for ~60ms, trust it is a real leap
+                        kalmanFilter.reset(rawPitch);
+                        smoothedPitch = rawPitch;
+                        octaveErrorCount = 0;
+                    } else {
+                        // Ignore the spike, keep coasting on current prediction
+                        smoothedPitch = kalmanFilter.pitch;
+                    }
+                } else {
+                    octaveErrorCount = 0;
+                    // Gamaka-adaptive: increase Q during fast pitch changes
+                    const pitchDelta = Math.abs(rawPitch - kalmanFilter.pitch);
+                    const Q_scale = pitchDelta > 8 ? 3.0 : 1.0; // 3x process noise during gamakas
+                    
+                    kalmanFilter.predict(Q_scale);
+                    smoothedPitch = kalmanFilter.update(rawPitch, confidence);
+                }
+            }
+            silenceTimer = 0;
+        } else {
+            // Voice stopped or unvoiced
+            silenceTimer += 16;
+            if (silenceTimer > 300) {
+                smoothedPitch = null;
+                lastRawPitches = [];
+                kalmanFilter.initialized = false;
             }
         }
-        silenceTimer = 0;
     } else {
-        // Voice stopped or unvoiced
-        silenceTimer += 16;
-        if (silenceTimer > 300) {
-            smoothedPitch = null;
-            lastRawPitches = [];
-            kalmanFilter.initialized = false;
+        // We don't have a new hardware reading this frame.
+        // During fast gamakas, we can optionally use the Kalman state to predict forward!
+        if (smoothedPitch !== null && kalmanFilter.initialized) {
+            // Optional: kalmanFilter.predict(1.0); 
+            // smoothedPitch = kalmanFilter.pitch;
         }
     }
 
@@ -521,11 +633,39 @@ function draw() {
         pitchDisplay.textContent = Math.round(smoothedPitch) + ' Hz';
         updateClosestSwara(smoothedPitch, saFreq);
         updateKeyboard(smoothedPitch, saFreq);
+        
+        // Auto-Scroll Logic: Follow the pitch if tracking is voiced
+        if (autoScrollToggle.checked) {
+            targetYOffsetLog2 = Math.log2(smoothedPitch / saFreq);
+        }
     } else {
         pitchDisplay.textContent = '-- Hz';
-        swaraDisplay.textContent = '--';
+        swaraAbbr.textContent = '--';
+        swaraName.innerHTML = '&nbsp;';
+        swaraOctave.innerHTML = '&nbsp;';
+        deviationDisplay.textContent = '';
         updateKeyboard(null, saFreq);
+        
+        // Coast towards center when unvoiced to prevent getting stranded
+        if (autoScrollToggle.checked) {
+            targetYOffsetLog2 = 0; 
+        }
     }
+    
+    // Smoothly tween the camera offset towards the target
+    if (autoScrollToggle.checked) {
+        currentYOffsetLog2 += (targetYOffsetLog2 - currentYOffsetLog2) * 0.05; // 5% easing per frame
+    } else {
+        // Automatically snap back to 0 if the user turns off the toggle
+        currentYOffsetLog2 += (0 - currentYOffsetLog2) * 0.1; 
+    }
+    
+    // Apply CSS Translation to the Y-Axis Labels Container
+    // We calculate how many pixels one 'log unit' represents on screen and scale the offset
+    const logSpan = MAX_RATIO_LOG2 - MIN_RATIO_LOG2;
+    const pixelsPerLogUnit = canvasHeight / logSpan;
+    const pixelOffset = currentYOffsetLog2 * pixelsPerLogUnit;
+    yAxisLabelsInner.style.transform = `translateY(${pixelOffset}px)`;
 
     // Draw frame grid
     drawGrid();
@@ -605,7 +745,8 @@ async function startAudio() {
                 pitchWorkletNode.port.onmessage = (event) => {
                     workletDetection = {
                         pitch: event.data.pitch,
-                        confidence: event.data.confidence
+                        confidence: event.data.confidence,
+                        timestamp: event.data.timestamp
                     };
                 };
                 
@@ -660,7 +801,9 @@ function stopAudio() {
     smoothedPitch = null;
     kalmanFilter.initialized = false;
     pitchDisplay.textContent = '-- Hz';
-    swaraDisplay.textContent = '--';
+    swaraAbbr.textContent = '--';
+    swaraName.innerHTML = '&nbsp;';
+    swaraOctave.innerHTML = '&nbsp;';
     deviationDisplay.textContent = '';
     deviationDisplay.style.color = 'var(--text-muted)';
     
@@ -1044,6 +1187,17 @@ systemSelect.addEventListener('change', () => {
     generateLabels();
     if (!isRecording) drawGrid();
     renderShrutiPetti();
+    updateSwaraMarkers(); // Update piano keyboard labels
+    
+    // Immediately update main swara display if we are tracking pitch
+    if (smoothedPitch) {
+        currentSwaraKey = '--'; // Force re-evaluation next frame
+    } else {
+        swaraAbbr.textContent = '--';
+        swaraName.innerHTML = '&nbsp;';
+        swaraOctave.innerHTML = '&nbsp;';
+        deviationDisplay.textContent = '';
+    }
 });
 
 ragaSearch.addEventListener('input', () => {
@@ -1075,21 +1229,21 @@ function renderShrutiPetti() {
     stopShrutiPetti();
     
     // Use only the 12 base swaras (exclude S' which is octave Sa)
-    const baseSwaras = SWARAS.filter(s => s.name !== "S'");
+    const baseSwaras = SWARAS.filter(s => s.id !== "S'");
     
     baseSwaras.forEach(swara => {
         const btn = document.createElement('button');
         btn.className = 'shruti-petti-btn';
-        btn.textContent = swara.fullName;
-        btn.dataset.swaraName = swara.name;
+        btn.textContent = getSwaraName(swara.id);
+        btn.dataset.swaraName = swara.id;
         btn.dataset.ratio = swara.ratio;
         
-        if (swara.name === 'S') {
+        if (swara.id === 'S') {
             btn.classList.add('is-sa');
         }
         
         // Disable if raga is selected and this swara is not in it
-        if (currentRagaLayout !== null && !currentRagaLayout.includes(swara.name)) {
+        if (currentRagaLayout !== null && !currentRagaLayout.includes(swara.id)) {
             btn.disabled = true;
         }
         
@@ -1294,21 +1448,12 @@ function midiToSwara(midi, saFreq) {
     const dist = ((midi - Math.round(saMidi)) % 12 + 12) % 12;
     
     const SWARA_MAP = {
-        0:  'Sa',
-        1:  'Komal Re',
-        2:  'Shuddh Re',
-        3:  'Komal Ga',
-        4:  'Shuddh Ga',
-        5:  'Shuddh Ma',
-        6:  'Tivra Ma',
-        7:  'Pa',
-        8:  'Komal Dha',
-        9:  'Shuddh Dha',
-        10: 'Komal Ni',
-        11: 'Shuddh Ni'
+        0: 'S', 1: 'r', 2: 'R', 3: 'g', 4: 'G', 5: 'm',
+        6: 'M', 7: 'P', 8: 'd', 9: 'D', 10: 'n', 11: 'N'
     };
     
-    return SWARA_MAP[dist] || '';
+    const swaraBaseName = SWARA_MAP[dist];
+    return swaraBaseName ? getSwaraName(swaraBaseName) : '';
 }
 
 function buildKeyboard() {
@@ -1382,20 +1527,10 @@ function buildKeyboard() {
     updateSwaraMarkers();
 }
 
-// Short swara names for keyboard labels
-const SWARA_SHORT = {
-    0:  'S',   // Sa
-    1:  'r',   // Komal Re
-    2:  'R',   // Shuddh Re
-    3:  'g',   // Komal Ga
-    4:  'G',   // Shuddh Ga
-    5:  'm',   // Shuddh Ma
-    6:  'M',   // Tivra Ma
-    7:  'P',   // Pa
-    8:  'd',   // Komal Dha
-    9:  'D',   // Shuddh Dha
-    10: 'n',   // Komal Ni
-    11: 'N'    // Shuddh Ni
+// Short swara names map dynamically in updateSwaraMarkers()
+const SWARA_BASE_IDS = {
+    0: 'S', 1: 'r', 2: 'R', 3: 'g', 4: 'G', 5: 'm',
+    6: 'M', 7: 'P', 8: 'd', 9: 'D', 10: 'n', 11: 'N'
 };
 
 function updateSwaraMarkers() {
@@ -1415,10 +1550,11 @@ function updateSwaraMarkers() {
         const dist = ((midi - saMidi) % 12 + 12) % 12;
         const el = keyElements[midi];
         
-        // Set swara label
+        // Set swara label using short name
         const sLabel = el.querySelector('.swara-label-top');
-        if (sLabel && SWARA_SHORT[dist] !== undefined) {
-            sLabel.textContent = SWARA_SHORT[dist];
+        const baseId = SWARA_BASE_IDS[dist];
+        if (sLabel && baseId) {
+            sLabel.textContent = getSwaraName(baseId, true);
         }
         
         // Mark Sa keys with gold accent
