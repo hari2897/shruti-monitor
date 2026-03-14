@@ -13,6 +13,10 @@ const swaraOctave = document.getElementById('swaraOctave');
 const pitchDisplay = document.getElementById('pitchDisplay');
 const deviationDisplay = document.getElementById('deviationDisplay');
 const yAxisLabelsInner = document.getElementById('yAxisLabelsInner');
+const pitchSliderLabels = document.getElementById('pitchSliderLabels');
+const pitchSliderMarker = document.getElementById('pitchSliderMarker');
+const sliderEdgeLeft = document.getElementById('sliderEdgeLeft');
+const sliderEdgeRight = document.getElementById('sliderEdgeRight');
 const autoScrollToggle = document.getElementById('autoScrollToggle');
 
 const systemSelect = document.getElementById('systemSelect');
@@ -50,6 +54,11 @@ const TIME_WINDOW_MS = 5000;
 // Auto-Scroll State
 let currentYOffsetLog2 = 0;
 let targetYOffsetLog2 = 0;
+
+// Pitch Slider State
+let sliderScrollLog2 = 0;
+let targetSliderScrollLog2 = 0;
+const SLIDER_VIEW_OCTAVES = 2.0;
 
 // Tanpura State
 let isTanpuraPlaying = false;
@@ -123,21 +132,26 @@ function getSwaraName(baseId, useShort = false) {
     return useShort ? entry.short : entry.full;
 }
 
-// Raga Definitions
+// Raga Definitions are now loaded externally
+// Unified data structure bridging the two files for pitch logic compatibility
 const RAGAS = {
-    hindustani: {
-        "Yaman": ["S", "R", "G", "M", "P", "D", "N"],
-        "Bhairavi": ["S", "r", "g", "m", "P", "d", "n"],
-        "Bhairav": ["S", "r", "G", "m", "P", "d", "N"],
-        "Malkauns": ["S", "g", "m", "d", "n"],
-        "Bhoopali": ["S", "R", "G", "P", "D"],
-        "Durga": ["S", "R", "m", "P", "D"],
-        "Desh": ["S", "R", "m", "P", "N", "n"],
-        "Bageshree": ["S", "R", "g", "m", "D", "n"]
-    },
-    carnatic: window.CARNATIC_RAGAS || {}
+    hindustani: window.HINDUSTANI_RAGAS || {},
+    carnatic: {}
 };
 
+// Flatten the Carnatic hierarchy so existing graph logic can look up swaras by name
+if (window.CARNATIC_HIERARCHY) {
+    window.CARNATIC_HIERARCHY.forEach(melakarta => {
+        RAGAS.carnatic[melakarta.name] = melakarta.swaras;
+        if (melakarta.janyas) {
+            melakarta.janyas.forEach(janya => {
+                RAGAS.carnatic[janya.name] = janya.swaras;
+            });
+        }
+    });
+}
+
+let activeNomenclature = 'hindustani';
 let currentRagaLayout = null; // Arrays of valid swara names
 
 // Graph Y-axis logic
@@ -150,46 +164,125 @@ let MAX_RATIO_LOG2 = 1.2;
 
 // Adjust canvas resolution handling DPI
 function resizeCanvas() {
-    canvasWidth = window.innerWidth;
-    const topBar = document.querySelector('.top-bar');
-    const keyboardSec = document.getElementById('keyboardSection');
-    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+    const container = document.querySelector('.canvas-container');
+    if (!container) return;
 
-    let usedHeight = (topBar ? topBar.offsetHeight : 0)
-                   + (keyboardSec ? keyboardSec.offsetHeight : 0);
-
-    // On desktop, toolbar and shruti bar are inline and take up space
-    if (!isMobile) {
-        const toolbar = document.querySelector('.toolbar');
-        const shrutiBar = document.getElementById('shrutiPettiBar');
-        usedHeight += (toolbar ? toolbar.offsetHeight : 0)
-                    + (shrutiBar ? shrutiBar.offsetHeight : 0);
-    }
-
-    canvasHeight = window.innerHeight - usedHeight;
+    canvasWidth = container.clientWidth;
+    canvasHeight = container.clientHeight; // Direct read from Flexbox container
     
     // Handle High DPI displays
     const dpr = window.devicePixelRatio || 1;
     canvas.width = canvasWidth * dpr;
     canvas.height = canvasHeight * dpr;
+    
+    // Scale the context once
     ctx.scale(dpr, dpr);
     
-    
-    drawGrid(); // Redraw static grid labels
-    generateLabels(); // Regenerate HTML labels so they snap to the matched layout
+    // Redraw static elements with the updated canvasHeight
+    drawGrid(); 
+    generateLabels(); 
+    generateSliderLabels(); 
 }
 
 window.addEventListener('resize', resizeCanvas);
 
-// Bind a ResizeObserver directly to the canvas-container to strictly lock Y-axis labels to rendering height
+// Bind a ResizeObserver directly to the canvas-container to strictly lock layout
 const canvasObserver = new ResizeObserver(() => {
-    // Only resize if height physically changed
-    const container = document.querySelector('.canvas-container');
-    if (container && container.offsetHeight !== canvasHeight) {
-        resizeCanvas();
-    }
+    resizeCanvas();
 });
 canvasObserver.observe(document.querySelector('.canvas-container'));
+
+// ── Vertical Scroll and Zoom Logic ──
+
+const container = document.querySelector('.canvas-container');
+let lastTouchY = 0;
+let initialPinchDistance = null;
+let initialZoomValue = null;
+
+function getPinchDistance(touches) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+function applyManualScroll(amount) {
+
+    targetYOffsetLog2 += amount;
+    
+    // If the animation loop is not running, we must manually update the graphics
+    if (!isRecording) {
+        currentYOffsetLog2 = targetYOffsetLog2; 
+        
+        const logSpan = MAX_RATIO_LOG2 - MIN_RATIO_LOG2;
+        const pixelsPerLogUnit = canvasHeight / logSpan;
+        const pixelOffset = currentYOffsetLog2 * pixelsPerLogUnit;
+        
+        if (yAxisLabelsInner) {
+            yAxisLabelsInner.style.transform = `translateY(${pixelOffset}px)`;
+        }
+        drawGrid(); // Redraw the lines
+    }
+}
+
+container.addEventListener('wheel', (e) => {
+    if (!autoScrollToggle.checked) {
+        e.preventDefault();
+        // Mouse wheel scroll sensitivity
+        const scrollAmount = e.deltaY * 0.001 * (zoomInput ? parseFloat(zoomInput.value) : 1);
+        applyManualScroll(-scrollAmount); // Reversed direction
+    }
+}, { passive: false });
+
+container.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1 && !autoScrollToggle.checked) {
+        lastTouchY = e.touches[0].clientY;
+    } else if (e.touches.length === 2) {
+        // Start pinch-to-zoom
+        initialPinchDistance = getPinchDistance(e.touches);
+        initialZoomValue = parseFloat(zoomInput.value);
+    }
+}, { passive: true });
+
+container.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 1 && !autoScrollToggle.checked) {
+        const currentY = e.touches[0].clientY;
+        const deltaY = lastTouchY - currentY;
+        lastTouchY = currentY;
+
+        // Touch scroll sensitivity
+        const scrollAmount = (deltaY / canvasHeight) * (MAX_RATIO_LOG2 - MIN_RATIO_LOG2);
+        applyManualScroll(-scrollAmount); // Reversed direction
+        e.preventDefault(); // Prevent page pull-down
+    } else if (e.touches.length === 2) {
+        // Handle pinch-to-zoom
+        const currentPinchDistance = getPinchDistance(e.touches);
+        if (initialPinchDistance) {
+            const scale = initialPinchDistance / currentPinchDistance;
+            
+            // Calculate new zoom value based on scale, bounded by input limits
+            let newZoom = initialZoomValue * scale;
+            const minZ = parseFloat(zoomInput.min);
+            const maxZ = parseFloat(zoomInput.max);
+            newZoom = Math.max(minZ, Math.min(newZoom, maxZ));
+            
+            // Update the slider value and dispatch event to reuse existing zoom logic
+            if (zoomInput.value !== newZoom.toFixed(2)) {
+                zoomInput.value = newZoom.toFixed(2);
+                zoomInput.dispatchEvent(new Event('input'));
+            }
+            e.preventDefault();
+        }
+    }
+}, { passive: false });
+
+container.addEventListener('touchend', (e) => {
+    if (e.touches.length < 2) {
+        initialPinchDistance = null;
+    }
+    if (e.touches.length === 1 && !autoScrollToggle.checked) {
+        lastTouchY = e.touches[0].clientY;
+    }
+});
 
 // Pitch mapping function (Raw physical pixels from static bounds)
 function ratioToYRaw(log2Value) {
@@ -226,6 +319,66 @@ function generateLabels() {
                 
                 // Position physically without considering camera offset, offset happens via CSS translate
                 createLabel(displayName, ratioToYRaw(logRatio), swara.id, swara.id === "S" && octave === 0);
+            }
+        });
+    });
+}
+
+function generateSliderLabels() {
+    if (!pitchSliderLabels) return;
+    pitchSliderLabels.innerHTML = '';
+    
+    // We generate labels for a wide range (-2 to +3 octaves)
+    // We map 1 octave to 50% width since the view span is 2 octaves.
+    const sliderMinLog = -2.0;
+    const sliderMaxLog = 3.0;
+    
+    const renderOctaves = [-2, -1, 0, 1, 2, 3];
+    
+    renderOctaves.forEach(octave => {
+        SWARAS.forEach(swara => {
+            if (swara.id === "S'" && octave !== 0) return;
+            
+            const ratio = swara.ratio * Math.pow(2, octave);
+            const logRatio = Math.log2(ratio);
+            
+            if (logRatio >= sliderMinLog && logRatio <= sliderMaxLog) {
+                // Determine if valid in current raga
+                const isValid = currentRagaLayout === null || currentRagaLayout.includes(swara.id);
+                // Major swaras are those in the raga layout. If 'none' selected, all are major.
+                const isMajor = isValid; 
+                
+                let displayName = getSwaraName(swara.id, true);
+                if (octave < 0) displayName += '.'.repeat(Math.abs(octave));
+                if (octave > 0) displayName += "'".repeat(octave);
+                
+                // Calculate percentage relative to 0 being 50%
+                const percentage = ((logRatio - (-SLIDER_VIEW_OCTAVES/2)) / SLIDER_VIEW_OCTAVES) * 100;
+                
+                const labelDiv = document.createElement('div');
+                let classNames = ['pitch-slider-label'];
+                if (swara.id === "S" && octave === 0) classNames.push('is-sa');
+                else if (isMajor) classNames.push('is-major');
+                
+                // Only show labels for valid swaras to keep it clean, unless it's Sa
+                if (!isValid && !(swara.id === "S" && octave === 0)) return;
+                
+                labelDiv.id = `slider-label-${swara.id}_${octave}`;
+                labelDiv.className = classNames.join(' ');
+                labelDiv.style.left = `${percentage}%`;
+                labelDiv.dataset.logRatio = logRatio;
+                
+                const tickDiv = document.createElement('div');
+                tickDiv.className = 'pitch-slider-tick';
+                
+                const textDiv = document.createElement('div');
+                textDiv.className = 'pitch-slider-text';
+                textDiv.textContent = displayName;
+                
+                labelDiv.appendChild(tickDiv);
+                labelDiv.appendChild(textDiv);
+                
+                pitchSliderLabels.appendChild(labelDiv);
             }
         });
     });
@@ -351,11 +504,17 @@ function drawGrid() {
         
         ctx.beginPath();
         if (isSa) {
-            ctx.strokeStyle = 'rgba(251, 191, 36, 0.25)';
+            ctx.strokeStyle = 'rgba(251, 191, 36, 0.45)'; // Brighter gold
+            ctx.lineWidth = 2; // Thicker Sa line
+            ctx.setLineDash([]);
         } else if (isValid) {
-            ctx.strokeStyle = 'rgba(217, 163, 76, 0.04)';
+            ctx.strokeStyle = 'rgba(217, 163, 76, 0.25)'; // Clear valid swara lines
+            ctx.lineWidth = 1;
+            ctx.setLineDash([]);
         } else {
-            ctx.strokeStyle = 'rgba(217, 163, 76, 0.015)'; // Varjit (very faint)
+            ctx.strokeStyle = 'rgba(217, 163, 76, 0.08)'; // Varjit (faint)
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]); // Dashed
         }
         
         ctx.moveTo(0, y);
@@ -364,12 +523,15 @@ function drawGrid() {
     };
 
     // Draw lines for all octaves based on visible range
-    [-1, 0, 1].forEach(octave => {
+    [-2, -1, 0, 1, 2].forEach(octave => {
         SWARAS.forEach(swara => {
             let ratio = swara.ratio * Math.pow(2, octave);
-            drawLine(ratio, swara.id, swara.id === "S");
+            drawLine(ratio, swara.id, swara.id === "S" && octave === 0);
         });
     });
+    
+    // Reset line dash to solid for the main pitch trace
+    ctx.setLineDash([]);
 }
 
 // ═══ Kalman Filter for Pitch Smoothing ═══
@@ -524,6 +686,17 @@ function updateClosestSwara(pitch, saFreq) {
         } else {
             swaraOctave.innerHTML = '&nbsp;';
         }
+        
+        // --- Pitch Slider Highlighting ---
+        // Find all slider labels, remove .highlight, then add it to the matching one
+        const sliderLabels = document.querySelectorAll('.pitch-slider-label');
+        sliderLabels.forEach(label => label.classList.remove('highlight'));
+        
+        const targetId = `slider-label-${currentSwaraKey}`;
+        const activeSliderLabel = document.getElementById(targetId);
+        if (activeSliderLabel) {
+            activeSliderLabel.classList.add('highlight');
+        }
     }
     
     // Calculate deviation from the currently displayed swara
@@ -638,6 +811,58 @@ function draw() {
         if (autoScrollToggle.checked) {
             targetYOffsetLog2 = Math.log2(smoothedPitch / saFreq);
         }
+        
+        // Pitch Slider Updates
+        if (pitchSliderMarker && pitchSliderLabels) {
+            const logRatio = Math.log2(smoothedPitch / saFreq); 
+            
+            // Dynamic Scrolling logic
+            // If logRatio gets close to the edges of the visible slider window, push the target scroll
+            const edgeMargin = 0.2; // log2 units
+            if (logRatio > targetSliderScrollLog2 + (SLIDER_VIEW_OCTAVES/2) - edgeMargin) {
+                targetSliderScrollLog2 = logRatio - (SLIDER_VIEW_OCTAVES/2) + edgeMargin;
+            } else if (logRatio < targetSliderScrollLog2 - (SLIDER_VIEW_OCTAVES/2) + edgeMargin) {
+                targetSliderScrollLog2 = logRatio + (SLIDER_VIEW_OCTAVES/2) - edgeMargin;
+            }
+            // Clamp target scroll so we don't scroll indefinitely, keep it within bounds -1 to +1
+            targetSliderScrollLog2 = Math.max(-1.0, Math.min(1.0, targetSliderScrollLog2));
+            
+            // Nearest Swara Highlight Logic
+            const labels = pitchSliderLabels.children;
+            let closestLabel = null;
+            let minCentsDiff = Infinity;
+            
+            for (let i = 0; i < labels.length; i++) {
+                const label = labels[i];
+                label.classList.remove('highlight'); // reset all
+                const labelLog = parseFloat(label.dataset.logRatio);
+                const centsDiff = Math.abs(logRatio - labelLog) * 1200;
+                
+                if (centsDiff < minCentsDiff && centsDiff <= 15) {
+                    minCentsDiff = centsDiff;
+                    closestLabel = label;
+                }
+            }
+            if (closestLabel) {
+                closestLabel.classList.add('highlight');
+            }
+            
+            // Marker Position Calculation 
+            const visualLogRatio = logRatio - sliderScrollLog2;
+            const percentage = ((visualLogRatio - (-SLIDER_VIEW_OCTAVES/2)) / SLIDER_VIEW_OCTAVES) * 100;
+            
+            pitchSliderMarker.style.left = `${Math.max(-5, Math.min(105, percentage))}%`;
+            pitchSliderMarker.classList.remove('inactive');
+            
+            // Edge Indicators
+            if (sliderEdgeLeft && sliderEdgeRight) {
+                const isOffLeft = percentage < 0;
+                const isOffRight = percentage > 100;
+                sliderEdgeLeft.classList.toggle('active', isOffLeft);
+                sliderEdgeRight.classList.toggle('active', isOffRight);
+            }
+        }
+
     } else {
         pitchDisplay.textContent = '-- Hz';
         swaraAbbr.textContent = '--';
@@ -650,15 +875,24 @@ function draw() {
         if (autoScrollToggle.checked) {
             targetYOffsetLog2 = 0; 
         }
+        
+        if (pitchSliderMarker) {
+            pitchSliderMarker.classList.add('inactive');
+        }
+        
+        if (sliderEdgeLeft && sliderEdgeRight) {
+            sliderEdgeLeft.classList.remove('active');
+            sliderEdgeRight.classList.remove('active');
+        }
+        
+        // Coast slider scroll back to 0
+        targetSliderScrollLog2 = 0;
     }
     
     // Smoothly tween the camera offset towards the target
-    if (autoScrollToggle.checked) {
-        currentYOffsetLog2 += (targetYOffsetLog2 - currentYOffsetLog2) * 0.05; // 5% easing per frame
-    } else {
-        // Automatically snap back to 0 if the user turns off the toggle
-        currentYOffsetLog2 += (0 - currentYOffsetLog2) * 0.1; 
-    }
+    // This now runs even when auto-follow is off, allowing manual scroll targets to be reached
+    currentYOffsetLog2 += (targetYOffsetLog2 - currentYOffsetLog2) * 0.1; 
+
     
     // Apply CSS Translation to the Y-Axis Labels Container
     // We calculate how many pixels one 'log unit' represents on screen and scale the offset
@@ -666,6 +900,15 @@ function draw() {
     const pixelsPerLogUnit = canvasHeight / logSpan;
     const pixelOffset = currentYOffsetLog2 * pixelsPerLogUnit;
     yAxisLabelsInner.style.transform = `translateY(${pixelOffset}px)`;
+    
+    // Smoothly tween the slider scroll
+    sliderScrollLog2 += (targetSliderScrollLog2 - sliderScrollLog2) * 0.1;
+    
+    if (pitchSliderLabels) {
+        // Translation for slider labels
+        const translatePercent = -(sliderScrollLog2 / SLIDER_VIEW_OCTAVES) * 100;
+        pitchSliderLabels.style.transform = `translateX(${translatePercent}%)`;
+    }
 
     // Draw frame grid
     drawGrid();
@@ -1115,7 +1358,10 @@ tanpuraToggle.addEventListener('change', async () => {
     if (tanpuraToggle.checked) {
         // Ensure context exists (if they click tanpura before mic)
         if (!audioContext) {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            if (!window.sharedAudioContext) {
+                window.sharedAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
+            }
+            audioContext = window.sharedAudioContext;
         }
         if (audioContext.state === 'suspended') {
             await audioContext.resume();
@@ -1137,6 +1383,7 @@ tanpuraString.addEventListener('change', () => {
 // Update grid when Sa changes
 saFreqInput.addEventListener('change', () => {
     drawGrid();
+    generateSliderLabels();
     if (isTanpuraPlaying) {
         stopTanpuraNodes();
         isTanpuraPlaying = false;
@@ -1149,79 +1396,216 @@ zoomInput.addEventListener('input', () => {
     MAX_RATIO_LOG2 = parseFloat(zoomInput.value);
     MIN_RATIO_LOG2 = -MAX_RATIO_LOG2;
     generateLabels();
+    generateSliderLabels();
     drawGrid();
 });
 
-// --- Raga Selection Logic ---
-function populateRagaSelect(system, filterText = '') {
-    ragaSelect.innerHTML = '<option value="none">--</option>';
+// --- Modal UI Logic ---
+const ragaModal = document.getElementById('ragaModal');
+const openRagaModalBtn = document.getElementById('openRagaModalBtn');
+const closeRagaModalBtn = document.getElementById('closeRagaModalBtn');
+const modalRagaSearch = document.getElementById('modalRagaSearch');
+const modalTabs = document.querySelectorAll('.modal-tab');
+const modalRagaList = document.getElementById('modalRagaList');
+const currentRagaText = document.getElementById('currentRagaText');
+
+let activeModalSystem = 'hindustani';
+
+function openRagaModal() {
+    ragaModal.classList.remove('hidden');
+    modalRagaSearch.value = '';
+    renderModalList();
+    modalRagaSearch.focus();
+}
+
+function closeRagaModal() {
+    ragaModal.classList.add('hidden');
+}
+
+openRagaModalBtn.addEventListener('click', openRagaModal);
+closeRagaModalBtn.addEventListener('click', closeRagaModal);
+ragaModal.addEventListener('click', (e) => {
+    if (e.target === ragaModal) closeRagaModal();
+});
+
+modalTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+        modalTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        activeModalSystem = tab.dataset.system;
+        renderModalList();
+    });
+});
+
+modalRagaSearch.addEventListener('input', () => {
+    renderModalList();
+});
+
+function selectRaga(system, ragaName, swaraArray) {
+    activeNomenclature = system !== 'none' ? system : 'hindustani';
     
     if (system === 'none') {
-        ragaSelect.disabled = true;
-        ragaSearch.disabled = true;
-        ragaSearch.value = '';
         currentRagaLayout = null;
+        currentRagaText.textContent = 'All Swaras (Hindustani)';
     } else {
-        ragaSelect.disabled = false;
-        ragaSearch.disabled = false;
-        
-        const ragas = RAGAS[system];
-        const lowerFilter = filterText.toLowerCase();
-        
-        for (const [ragaName, swaras] of Object.entries(ragas)) {
-            if (lowerFilter === '' || ragaName.toLowerCase().includes(lowerFilter)) {
-                const opt = document.createElement('option');
-                opt.value = ragaName;
-                opt.textContent = ragaName;
-                ragaSelect.appendChild(opt);
-            }
-        }
+        currentRagaLayout = swaraArray;
+        currentRagaText.textContent = ragaName;
+    }
+    
+    generateLabels();
+    generateSliderLabels();
+    if (!isRecording) drawGrid();
+    renderShrutiPetti();
+    updateSwaraMarkers(); // Update piano keys
+    
+    // Clear display to force refresh
+    swaraAbbr.textContent = '--';
+    swaraName.innerHTML = '&nbsp;';
+    
+    closeRagaModal();
+}
+
+function formatSwarasForCard(swaraArray) {
+    return swaraArray.join(' ');
+}
+
+function renderModalList() {
+    modalRagaList.innerHTML = '';
+    const filterText = modalRagaSearch.value.toLowerCase();
+    
+    if (activeModalSystem === 'none') {
+        const div = document.createElement('div');
+        div.className = 'raga-card';
+        div.innerHTML = `<span class="raga-card-name">All Swaras (Hindustani Nomenclature)</span>`;
+        div.onclick = () => selectRaga('none', null, null);
+        modalRagaList.appendChild(div);
+        return;
+    }
+
+    if (activeModalSystem === 'hindustani') {
+        renderHindustaniList(filterText);
+    } else if (activeModalSystem === 'carnatic') {
+        renderCarnaticList(filterText);
     }
 }
 
-systemSelect.addEventListener('change', () => {
-    const system = systemSelect.value;
-    ragaSearch.value = '';
-    populateRagaSelect(system);
-    currentRagaLayout = null;
-    generateLabels();
-    if (!isRecording) drawGrid();
-    renderShrutiPetti();
-    updateSwaraMarkers(); // Update piano keyboard labels
-    
-    // Immediately update main swara display if we are tracking pitch
-    if (smoothedPitch) {
-        currentSwaraKey = '--'; // Force re-evaluation next frame
-    } else {
-        swaraAbbr.textContent = '--';
-        swaraName.innerHTML = '&nbsp;';
-        swaraOctave.innerHTML = '&nbsp;';
-        deviationDisplay.textContent = '';
+function renderHindustaniList(filter) {
+    const ragas = window.HINDUSTANI_RAGAS || {};
+    // Group alphabetically
+    const groups = {};
+    for (const [name, swaras] of Object.entries(ragas)) {
+        if (!filter || name.toLowerCase().includes(filter)) {
+            const letter = name.charAt(0).toUpperCase();
+            if (!groups[letter]) groups[letter] = [];
+            groups[letter].push({ name, swaras });
+        }
     }
-});
+    
+    const sortedLetters = Object.keys(groups).sort();
+    
+    if (sortedLetters.length === 0) {
+        modalRagaList.innerHTML = '<div class="no-results">No Hindustani ragas found.</div>';
+        return;
+    }
 
-ragaSearch.addEventListener('input', () => {
-    populateRagaSelect(systemSelect.value, ragaSearch.value);
-});
+    sortedLetters.forEach(letter => {
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'raga-group';
+        
+        const header = document.createElement('div');
+        header.className = 'raga-group-header';
+        header.textContent = letter;
+        groupDiv.appendChild(header);
+        
+        groups[letter].sort((a,b) => a.name.localeCompare(b.name)).forEach(raga => {
+            const card = document.createElement('div');
+            card.className = 'raga-card';
+            card.innerHTML = `
+                <span class="raga-card-name">${raga.name}</span>
+                <span class="raga-card-swaras">${formatSwarasForCard(raga.swaras)}</span>
+            `;
+            card.onclick = () => selectRaga('hindustani', raga.name, raga.swaras);
+            groupDiv.appendChild(card);
+        });
+        
+        modalRagaList.appendChild(groupDiv);
+    });
+}
 
-ragaSelect.addEventListener('change', () => {
-    const system = systemSelect.value;
-    const raga = ragaSelect.value;
+function renderCarnaticList(filter) {
+    const hierarchy = window.CARNATIC_HIERARCHY || [];
+    let matchCount = 0;
+
+    hierarchy.forEach(melakarta => {
+        const janyas = melakarta.janyas || [];
+        const mMatch = !filter || melakarta.name.toLowerCase().includes(filter);
+        const matchingJanyas = filter ? janyas.filter(j => j.name.toLowerCase().includes(filter)) : janyas;
+        
+        if (mMatch || matchingJanyas.length > 0) {
+            matchCount++;
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'raga-group';
+            
+            // Render Melakarta Header Context (only if it has Janyas to group; otherwise it's just a standalone card)
+            if (janyas.length > 0) {
+                const header = document.createElement('div');
+                header.className = 'carnatic-melakarta';
+                header.textContent = melakarta.name;
+                groupDiv.appendChild(header);
+            }
+            
+            // Render Melakarta Card if it explicitly matches or there is no filter
+            if (mMatch) {
+                const mkCard = document.createElement('div');
+                mkCard.className = 'raga-card';
+                mkCard.innerHTML = `
+                    <span class="raga-card-name">${melakarta.name}</span>
+                    <span class="raga-card-swaras">${formatSwarasForCard(melakarta.swaras)}</span>
+                `;
+                mkCard.onclick = () => selectRaga('carnatic', melakarta.name, melakarta.swaras);
+                groupDiv.appendChild(mkCard);
+            }
+            
+            // Render matching Janyas
+            matchingJanyas.forEach(janya => {
+                const jCard = document.createElement('div');
+                jCard.className = 'raga-card is-janya';
+                jCard.innerHTML = `
+                    <span class="raga-card-name">${janya.name}</span>
+                    <span class="raga-card-swaras">${formatSwarasForCard(janya.swaras)}</span>
+                `;
+                jCard.onclick = () => selectRaga('carnatic', janya.name, janya.swaras);
+                groupDiv.appendChild(jCard);
+            });
+            
+            modalRagaList.appendChild(groupDiv);
+        }
+    });
     
-    if (raga === 'none') {
-        currentRagaLayout = null;
+    if (matchCount === 0) {
+        modalRagaList.innerHTML = '<div class="no-results">No Carnatic ragas found in Melakarta or Janya structure.</div>';
+    }
+}
+
+// Check if a swara is valid in the selected raga
+function isSwaraValid(swaraId, system) {
+    if (activeNomenclature === 'none' && currentRagaLayout === null) return true; // All swaras visible
+    if (!currentRagaLayout) return true;
+    
+    // Compare shorthand identifiers
+    const normalizedTarget = swaraId.replace("'", ""); // Remove octave markers
+    
+    if (system === 'carnatic') {
+        return currentRagaLayout.some(ragaNotation => ragaNotation === normalizedTarget);
     } else {
-        currentRagaLayout = RAGAS[system][raga];
+        return currentRagaLayout.includes(normalizedTarget);
     }
-    
-    generateLabels();
-    if (!isRecording) {
-        ctx.fillStyle = '#110b08';
-        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-        drawGrid();
-    }
-    renderShrutiPetti();
-});
+}
+
+// System lookup fallback logic
+function getSystemMode() {
+    return activeNomenclature !== 'none' ? activeNomenclature : 'hindustani';
+}
 
 // --- Shruti Petti ---
 function renderShrutiPetti() {
@@ -1243,7 +1627,7 @@ function renderShrutiPetti() {
         }
         
         // Disable if raga is selected and this swara is not in it
-        if (currentRagaLayout !== null && !currentRagaLayout.includes(swara.id)) {
+        if (!isSwaraValid(swara.id, activeNomenclature)) {
             btn.disabled = true;
         }
         
@@ -1253,19 +1637,25 @@ function renderShrutiPetti() {
 }
 
 async function toggleShrutiPettiNote(btn, swara) {
-    // If this button is already active, stop it
-    if (activeSwaraBtn === btn) {
-        stopShrutiPetti();
-        return;
-    }
+    // If the user clicks the active button again, we toggle it OFF.
+    const isAlreadyActive = (activeSwaraBtn === btn);
     
-    // Stop any currently playing note
+    // Stop any currently playing note so we can start fresh (or turn off).
     stopShrutiPetti();
     
-    // Ensure AudioContext exists
-    if (!audioContext) {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    if (isAlreadyActive) {
+        return; // The note is now stopped.
     }
+    
+    // Ensure AudioContext exists
+    // Initialize Audio Context using shared context
+    if (!audioContext) {
+        if (!window.sharedAudioContext) {
+            window.sharedAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
+        }
+        audioContext = window.sharedAudioContext;
+    }
+
     if (audioContext.state === 'suspended') {
         await audioContext.resume();
     }
@@ -1295,19 +1685,31 @@ async function toggleShrutiPettiNote(btn, swara) {
 }
 
 function stopShrutiPetti() {
-    if (shrutiPettiOsc) {
+    if (shrutiPettiOsc && shrutiPettiGain) {
+        // Capture the current oscillator and gain node into local variables.
+        // This ensures the 120ms timeout doesn't accidentally stop a NEWLY created note
+        // if the user clicks another button immediately.
+        const oscToStop = shrutiPettiOsc;
+        const gainToStop = shrutiPettiGain;
+        
         try {
-            shrutiPettiGain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.1);
+            gainToStop.gain.cancelScheduledValues(audioContext.currentTime);
+            // Use setTargetAtTime for a smooth, glitch-free fade out from current volume
+            gainToStop.gain.setTargetAtTime(0.001, audioContext.currentTime, 0.03); 
+            
             setTimeout(() => {
-                try { shrutiPettiOsc.stop(); shrutiPettiOsc.disconnect(); } catch(e){}
-                shrutiPettiOsc = null;
-                shrutiPettiGain = null;
+                try { oscToStop.stop(); oscToStop.disconnect(); } catch(e){}
+                try { gainToStop.disconnect(); } catch(e){}
             }, 120);
         } catch(e) {
-            shrutiPettiOsc = null;
-            shrutiPettiGain = null;
+            try { oscToStop.stop(); oscToStop.disconnect(); } catch(e){}
         }
+        
+        // Clear global references immediately so new notes can use them safely
+        shrutiPettiOsc = null;
+        shrutiPettiGain = null;
     }
+    
     if (activeSwaraBtn) {
         activeSwaraBtn.classList.remove('active');
         activeSwaraBtn = null;
@@ -1490,6 +1892,9 @@ function buildKeyboard() {
             keyElements[midi] = key;
             whiteKeyPositions.push({ midi, element: key, index: whiteIndex });
             whiteIndex++;
+            
+            // Add interaction events
+            addHarmoniumEvents(key, midi);
         }
     }
     
@@ -1521,10 +1926,90 @@ function buildKeyboard() {
             
             pianoKeyboard.appendChild(key);
             keyElements[midi] = key;
+            
+            // Add interaction events
+            addHarmoniumEvents(key, midi);
         }
     }
     
     updateSwaraMarkers();
+}
+
+function addHarmoniumEvents(keyEl, midi) {
+    // Mouse Events
+    keyEl.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return; // Only left click
+        triggerHarmoniumPlay(midi);
+    });
+    
+    keyEl.addEventListener('mouseenter', (e) => {
+        if (e.buttons === 1) {
+            triggerHarmoniumPlay(midi);
+        }
+    });
+
+    keyEl.addEventListener('mouseup', () => triggerHarmoniumStop(midi));
+    keyEl.addEventListener('mouseleave', () => triggerHarmoniumStop(midi));
+
+    // Touch Events
+    keyEl.addEventListener('touchstart', (e) => {
+        e.preventDefault(); // Prevent scrolling while playing
+        triggerHarmoniumPlay(midi);
+    }, { passive: false });
+
+    keyEl.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        triggerHarmoniumStop(midi);
+    }, { passive: false });
+    
+    keyEl.addEventListener('touchcancel', (e) => {
+        e.preventDefault();
+        triggerHarmoniumStop(midi);
+    }, { passive: false });
+}
+
+function triggerHarmoniumPlay(midi) {
+    if (!window.Harmonium) return;
+    
+    const saFreq = parseFloat(saFreqInput.value);
+    const saMidi = Math.round(freqToMidi(saFreq));
+    
+    // Calculate precise Just Intonation pitch
+    const dist = ((midi - saMidi) % 12 + 12) % 12;
+    const octaveOffset = Math.floor((midi - saMidi) / 12);
+    
+    if (SWARA_BASE_IDS[dist]) {
+        const swaraName = getSwaraName(SWARA_BASE_IDS[dist]);
+        // Find the swara definition in the current system to get the exact ratio
+        const mode = getSystemMode();
+        let exactRatio = null;
+        
+        // Let's iterate SWARAS to find the exact ratio matching the dist if not direct lookup
+        const entry = SWARAS.find(s => s.id === SWARA_BASE_IDS[dist] || (SWARA_LABELS[mode] && SWARA_LABELS[mode][s.id] && SWARA_LABELS[mode][s.id].short === SWARA_BASE_IDS[dist]));
+        
+        if (entry) {
+            exactRatio = entry.ratio;
+        } else {
+            // Fallback mathematically if not strict JI definition found
+            exactRatio = Math.pow(2, dist / 12);
+        }
+
+        const frequency = saFreq * exactRatio * Math.pow(2, octaveOffset);
+        window.Harmonium.playNote(midi, frequency);
+        
+        if (keyElements[midi]) {
+            keyElements[midi].classList.add('playing');
+        }
+    }
+}
+
+function triggerHarmoniumStop(midi) {
+    if (!window.Harmonium) return;
+    window.Harmonium.stopNote(midi);
+    
+    if (keyElements[midi]) {
+        keyElements[midi].classList.remove('playing');
+    }
 }
 
 // Short swara names map dynamically in updateSwaraMarkers()

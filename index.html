@@ -1,12 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shruti Monitor – Indian Classical Music Pitch Tracker</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Hind:wght@400;500;600;700&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Hind:wght@400;500;600;700&family=Inter:wght@400;500;700&display=swap"
+        rel="stylesheet">
 </head>
+
 <body>
     <div class="app-container">
 
@@ -50,7 +54,19 @@
                             <label>Base Sa (Tonic)</label>
                             <button class="pitch-picker-trigger" id="pitchPickerTrigger" type="button">
                                 <span id="pitchPickerLabel">C4 – 261.63 Hz</span>
-                                <svg width="10" height="6" viewBox="0 0 10 6"><path d="M0 0l5 6 5-6z" fill="currentColor"/></svg>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                    class="trigger-icon">
+                                    <line x1="4" y1="21" x2="4" y2="14"></line>
+                                    <line x1="4" y1="10" x2="4" y2="3"></line>
+                                    <line x1="12" y1="21" x2="12" y2="12"></line>
+                                    <line x1="12" y1="8" x2="12" y2="3"></line>
+                                    <line x1="20" y1="21" x2="20" y2="16"></line>
+                                    <line x1="20" y1="12" x2="20" y2="3"></line>
+                                    <line x1="1" y1="14" x2="7" y2="14"></line>
+                                    <line x1="9" y1="8" x2="15" y2="8"></line>
+                                    <line x1="17" y1="16" x2="23" y2="16"></line>
+                                </svg>
                             </button>
                             <input type="hidden" id="saFreq" value="261.63">
                         </div>
@@ -79,22 +95,16 @@
                     <h3 class="panel-title">Raga</h3>
                     <div class="panel-body">
                         <div class="control-group">
-                            <label for="systemSelect">Nomenclature & Ragas</label>
-                            <select id="systemSelect">
-                                <option value="hindustani" selected>Hindustani</option>
-                                <option value="carnatic">Carnatic</option>
-                                <option value="none">All Swaras (Hindustani)</option>
-                            </select>
-                        </div>
-                        <div class="control-group">
-                            <label for="ragaSearch">Search</label>
-                            <input type="text" id="ragaSearch" placeholder="Type raga name…" disabled>
-                        </div>
-                        <div class="control-group">
-                            <label for="ragaSelect">Select Raga</label>
-                            <select id="ragaSelect" disabled>
-                                <option value="none">—</option>
-                            </select>
+                            <label>Selected Raga</label>
+                            <button id="openRagaModalBtn" class="raga-trigger-btn">
+                                <span id="currentRagaText" class="raga-value">All Swaras</span>&nbsp;&nbsp;&nbsp;
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                    class="trigger-icon">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -122,9 +132,8 @@
                     </div>
                 </div>
 
+                <!-- Session panel commented out – not yet implemented
                 <div class="toolbar-divider"></div>
-
-                <!-- Panel 4 – Session -->
                 <div class="toolbar-panel">
                     <h3 class="panel-title">Session</h3>
                     <div class="panel-body">
@@ -133,6 +142,7 @@
                         <audio id="playbackAudio" style="display: none;"></audio>
                     </div>
                 </div>
+                -->
             </nav>
 
             <!-- ═══ SHRUTI PETTI BAR ═══ -->
@@ -146,11 +156,45 @@
 
         <!-- ═══ FLOATING SETTINGS BUTTON (mobile only) ═══ -->
         <button class="settings-toggle" id="settingsToggle" type="button" aria-label="Open Settings">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path
+                    d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
         </button>
+
+        <!-- ═══ PITCH SLIDER ═══ -->
+        <div class="pitch-slider-section">
+            <div class="octave-labels">
+                <span class="octave-label">Mandra</span>
+                <span class="octave-label">Madhya</span>
+                <span class="octave-label">Tara</span>
+            </div>
+            <div class="pitch-slider-track" id="pitchSliderTrack">
+                <div class="slider-edge-indicator left" id="sliderEdgeLeft">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                    </svg>
+                </div>
+                <div class="pitch-slider-labels-container">
+                    <div class="pitch-slider-labels" id="pitchSliderLabels">
+                        <!-- Labels injected via JS -->
+                    </div>
+                </div>
+                <!-- Dynamic sliding window wrapper -->
+                <div class="pitch-slider-marker-wrapper" id="pitchSliderMarkerWrapper">
+                    <div class="pitch-slider-marker" id="pitchSliderMarker"></div>
+                </div>
+                <div class="slider-edge-indicator right" id="sliderEdgeRight">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </div>
+            </div>
+        </div>
 
         <!-- ═══ MAIN CANVAS ═══ -->
         <main class="canvas-container">
@@ -190,9 +234,40 @@
                 <!-- Note buttons injected by JS -->
             </div>
         </div>
+    </div> <!-- End App Container -->
+
+    <!-- Raga Selection Modal -->
+    <div id="ragaModal" class="modal-overlay hidden">
+        <div class="modal-container raga-modal">
+            <div class="modal-header">
+                <h2>Raga Library</h2>
+                <button id="closeRagaModalBtn" class="modal-close-btn">&times;</button>
+            </div>
+
+            <div class="modal-search-bar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round" class="search-icon">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="modalRagaSearch" placeholder="Search ragas...">
+            </div>
+
+            <div class="modal-tabs">
+                <button class="modal-tab active" data-system="hindustani">Hindustani</button>
+                <button class="modal-tab" data-system="carnatic">Carnatic</button>
+            </div>
+
+            <div class="modal-body raga-modal-body" id="modalRagaList">
+                <!-- Raga cards injected here via JS -->
+            </div>
+        </div>
     </div>
 
     <script src="carnatic_data.js"></script>
+    <script src="hindustani_data.js"></script>
+    <script src="harmonium.js"></script>
     <script src="app.js"></script>
 </body>
+
 </html>

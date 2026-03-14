@@ -1,5 +1,4 @@
-// Complete 72 Melakarta Ragas mapping to internal Swara notation (S r R g G m M P d D n N)
-
+// Complete 72 Melakarta Ragas with nested Janya Ragas
 // Notation key:
 // S = Sa (1/1)
 // r = Shuddha Rishabham / Komal Re (16/15)
@@ -14,124 +13,155 @@
 // n = Kaisiki Nishadham / Komal Ni (9/5)
 // N = Kakali Nishadham / Shuddha Ni (15/8)
 
-// Note: Carnatic music has overlapping swara names for the same frequencies depending on the raga
-// For example:
-// R2 (Chathusruthi Rishabham) = G1 (Shuddha Gandharam) -> We map to 'R' (9/8)
-// R3 (Shatsruthi Rishabham) = G2 (Sadharana Gandharam) -> We map to 'g' (6/5)
-// D2 (Chathusruthi Dhaivatham) = N1 (Shuddha Nishadham) -> We map to 'D' (5/3)
-// D3 (Shatsruthi Dhaivatham) = N2 (Kaisiki Nishadham) -> We map to 'n' (9/5)
-
-window.CARNATIC_RAGAS = {
-    // Chakra 1: Indu (r, R) [Note mapping G1 to R for visualization]
-    "01 Kanakangi": ["S", "r", "R", "m", "P", "d", "D"],
-    "02 Ratnangi": ["S", "r", "R", "m", "P", "d", "n"],
-    "03 Ganamurti": ["S", "r", "R", "m", "P", "d", "N"],
-    "04 Vanaspati": ["S", "r", "R", "m", "P", "D", "n"],
-    "05 Manavati": ["S", "r", "R", "m", "P", "D", "N"],
-    "06 Tanarupi": ["S", "r", "R", "m", "P", "n", "N"],
+window.CARNATIC_HIERARCHY = [
+    // Chakra 1: Indu (r, R)
+    { name: "01 Kanakangi", swaras: ["S", "r", "R", "m", "P", "d", "D"], janyas: [] },
+    { name: "02 Ratnangi", swaras: ["S", "r", "R", "m", "P", "d", "n"], janyas: [] },
+    { name: "03 Ganamurti", swaras: ["S", "r", "R", "m", "P", "d", "N"], janyas: [] },
+    { name: "04 Vanaspati", swaras: ["S", "r", "R", "m", "P", "D", "n"], janyas: [] },
+    { name: "05 Manavati", swaras: ["S", "r", "R", "m", "P", "D", "N"], janyas: [] },
+    { name: "06 Tanarupi", swaras: ["S", "r", "R", "m", "P", "n", "N"], janyas: [] },
 
     // Chakra 2: Netra (r, g)
-    "07 Senavati": ["S", "r", "g", "m", "P", "d", "D"],
-    "08 Hanumatodi": ["S", "r", "g", "m", "P", "d", "n"],
-    "09 Dhenuka": ["S", "r", "g", "m", "P", "d", "N"],
-    "10 Natakapriya": ["S", "r", "g", "m", "P", "D", "n"],
-    "11 Kokilapriya": ["S", "r", "g", "m", "P", "D", "N"],
-    "12 Rupavati": ["S", "r", "g", "m", "P", "n", "N"],
+    { name: "07 Senavati", swaras: ["S", "r", "g", "m", "P", "d", "D"], janyas: [] },
+    { name: "08 Hanumatodi", swaras: ["S", "r", "g", "m", "P", "d", "n"], janyas: [
+        { name: "Dhanyasi", swaras: ["S", "g", "m", "P", "n"] },
+        { name: "Punnagavarali", swaras: ["n", "s", "r", "g", "m", "p", "d", "n"] }
+    ]},
+    { name: "09 Dhenuka", swaras: ["S", "r", "g", "m", "P", "d", "N"], janyas: [] },
+    { name: "10 Natakapriya", swaras: ["S", "r", "g", "m", "P", "D", "n"], janyas: [
+        { name: "Hindolam", swaras: ["S", "g", "m", "d", "n"] }
+    ]},
+    { name: "11 Kokilapriya", swaras: ["S", "r", "g", "m", "P", "D", "N"], janyas: [] },
+    { name: "12 Rupavati", swaras: ["S", "r", "g", "m", "P", "n", "N"], janyas: [] },
 
     // Chakra 3: Agni (r, G)
-    "13 Gayakapriya": ["S", "r", "G", "m", "P", "d", "D"],
-    "14 Vakulabharanam": ["S", "r", "G", "m", "P", "d", "n"],
-    "15 Mayamalavagowla": ["S", "r", "G", "m", "P", "d", "N"],
-    "16 Chakravakam": ["S", "r", "G", "m", "P", "D", "n"],
-    "17 Suryakantam": ["S", "r", "G", "m", "P", "D", "N"],
-    "18 Hatakambari": ["S", "r", "G", "m", "P", "n", "N"],
+    { name: "13 Gayakapriya", swaras: ["S", "r", "G", "m", "P", "d", "D"], janyas: [] },
+    { name: "14 Vakulabharanam", swaras: ["S", "r", "G", "m", "P", "d", "n"], janyas: [
+        { name: "Vasantha", swaras: ["S", "G", "m", "d", "N"] }
+    ]},
+    { name: "15 Mayamalavagowla", swaras: ["S", "r", "G", "m", "P", "d", "N"], janyas: [
+        { name: "Bowli", swaras: ["S", "r", "G", "P", "d"] },
+        { name: "Malahari", swaras: ["S", "r", "m", "P", "d"] },
+        { name: "Revagupti", swaras: ["S", "r", "G", "P", "d"] },
+        { name: "Saveri", swaras: ["S", "r", "m", "P", "d"] }
+    ]},
+    { name: "16 Chakravakam", swaras: ["S", "r", "G", "m", "P", "D", "n"], janyas: [
+        { name: "Bindumalini", swaras: ["S", "r", "G", "P", "n", "S", "n", "D", "P", "G", "r", "S"] }
+    ]},
+    { name: "17 Suryakantam", swaras: ["S", "r", "G", "m", "P", "D", "N"], janyas: [
+        { name: "Saurashtram", swaras: ["S", "r", "G", "M", "P", "M", "D", "N", "S", "N", "D", "P", "M", "G", "r", "S"] }
+    ]},
+    { name: "18 Hatakambari", swaras: ["S", "r", "G", "m", "P", "n", "N"], janyas: [] },
 
     // Chakra 4: Veda (R, g)
-    "19 Jhankaradhvani": ["S", "R", "g", "m", "P", "d", "D"],
-    "20 Natabhairavi": ["S", "R", "g", "m", "P", "d", "n"],
-    "21 Keeravani": ["S", "R", "g", "m", "P", "d", "N"],
-    "22 Kharaharapriya": ["S", "R", "g", "m", "P", "D", "n"],
-    "23 Gourimanohari": ["S", "R", "g", "m", "P", "D", "N"],
-    "24 Varunapriya": ["S", "R", "g", "m", "P", "n", "N"],
+    { name: "19 Jhankaradhvani", swaras: ["S", "R", "g", "m", "P", "d", "D"], janyas: [] },
+    { name: "20 Natabhairavi", swaras: ["S", "R", "g", "m", "P", "d", "n"], janyas: [
+        { name: "Abhogi", swaras: ["S", "R", "g", "m", "D"] },
+        { name: "Anandabhairavi", swaras: ["S", "R", "g", "m", "P", "D", "n"] },
+        { name: "Bhairavi (Carnatic)", swaras: ["S", "R", "g", "m", "P", "d", "D", "n"] },
+        { name: "Hindolam", swaras: ["S", "g", "m", "d", "n"] },
+        { name: "Jayanthasri", swaras: ["S", "g", "m", "d", "n", "S", "n", "d", "m", "p", "m", "g", "S"] }
+    ]},
+    { name: "21 Kiravani", swaras: ["S", "R", "g", "m", "P", "d", "N"], janyas: [
+        { name: "Kalyanavasantam", swaras: ["S", "g", "m", "d", "N", "S", "N", "d", "P", "m", "g", "R", "S"] }
+    ]},
+    { name: "22 Kharaharapriya", swaras: ["S", "R", "g", "m", "P", "D", "n"], janyas: [
+        { name: "Abhogi", swaras: ["S", "R", "g", "m", "D"] },
+        { name: "Darbar", swaras: ["S", "R", "m", "P", "D", "N", "S", "R", "S", "D", "P", "M", "R", "G", "G", "R", "S"] },
+        { name: "Mukhari", swaras: ["S", "R", "m", "P", "N", "d", "S", "N", "D", "P", "M", "G", "R", "S"] },
+        { name: "Reethigowla", swaras: ["S", "g", "R", "g", "m", "n", "d", "m", "n", "N"] },
+        { name: "Sriranjani", swaras: ["S", "R", "g", "m", "D", "n"] }
+    ]},
+    { name: "23 Gourimanohari", swaras: ["S", "R", "g", "m", "P", "D", "N"], janyas: [] },
+    { name: "24 Varunapriya", swaras: ["S", "R", "g", "m", "P", "n", "N"], janyas: [] },
 
     // Chakra 5: Bana (R, G)
-    "25 Mararanjani": ["S", "R", "G", "m", "P", "d", "D"],
-    "26 Charukesi": ["S", "R", "G", "m", "P", "d", "n"],
-    "27 Sarasangi": ["S", "R", "G", "m", "P", "d", "N"],
-    "28 Harikambhoji": ["S", "R", "G", "m", "P", "D", "n"],
-    "29 Sankarabharanam": ["S", "R", "G", "m", "P", "D", "N"],
-    "30 Naganandini": ["S", "R", "G", "m", "P", "n", "N"],
+    { name: "25 Mararanjani", swaras: ["S", "R", "G", "m", "P", "d", "D"], janyas: [] },
+    { name: "26 Charukesi", swaras: ["S", "R", "G", "m", "P", "d", "n"], janyas: [] },
+    { name: "27 Sarasangi", swaras: ["S", "R", "G", "m", "P", "d", "N"], janyas: [
+        { name: "Kamala Manohari", swaras: ["S", "G", "m", "P", "N", "S", "N", "d", "P", "m", "G", "S"] }
+    ]},
+    { name: "28 Harikambhoji", swaras: ["S", "R", "G", "m", "P", "D", "n"], janyas: [
+        { name: "Kambhoji", swaras: ["S", "R", "G", "m", "P", "D", "S", "S", "N", "D", "P", "M", "G", "R", "S"] },
+        { name: "Khamas", swaras: ["S", "m", "G", "m", "P", "D", "n", "N", "S", "S", "N", "D", "P", "M", "G", "M", "R", "S"] },
+        { name: "Mohanam", swaras: ["S", "R", "G", "P", "D"] }, // Can be Dheerasankarabharanam too
+        { name: "Sahana", swaras: ["S", "R", "G", "m", "P", "M", "D", "N", "S", "N", "D", "P", "M", "G", "M", "R", "G", "R", "S"] }
+    ]},
+    { name: "29 Dheerasankarabharanam", swaras: ["S", "R", "G", "m", "P", "D", "N"], janyas: [
+        { name: "Arabhi", swaras: ["S", "R", "m", "P", "D"] },
+        { name: "Begada", swaras: ["S", "G", "R", "G", "M", "P", "D", "P", "S", "S", "N", "D", "P", "M", "G", "R", "S"] },
+        { name: "Bilahari", swaras: ["S", "R", "G", "P", "D", "S", "S", "N", "D", "P", "M", "G", "R", "S"] },
+        { name: "Hamsadhvani", swaras: ["S", "R", "G", "P", "N"] },
+        { name: "Kedaragowla", swaras: ["S", "R", "M", "P", "N", "S", "S", "N", "D", "P", "M", "G", "R", "S"] },
+        { name: "Niroshta", swaras: ["S", "R", "G", "D", "N", "S", "S", "N", "D", "G", "R", "S"] }
+    ]},
+    { name: "30 Naganandini", swaras: ["S", "R", "G", "m", "P", "n", "N"], janyas: [] },
 
     // Chakra 6: Rutu (g, G)
-    "31 Yagapriya": ["S", "g", "G", "m", "P", "d", "D"],
-    "32 Ragavardhini": ["S", "g", "G", "m", "P", "d", "n"],
-    "33 Gangeyabhushani": ["S", "g", "G", "m", "P", "d", "N"],
-    "34 Vagadheeswari": ["S", "g", "G", "m", "P", "D", "n"],
-    "35 Shulini": ["S", "g", "G", "m", "P", "D", "N"],
-    "36 Chalanata": ["S", "g", "G", "m", "P", "n", "N"],
+    { name: "31 Yagapriya", swaras: ["S", "g", "G", "m", "P", "d", "D"], janyas: [] },
+    { name: "32 Ragavardhani", swaras: ["S", "g", "G", "m", "P", "d", "n"], janyas: [] },
+    { name: "33 Gangeyabhushani", swaras: ["S", "g", "G", "m", "P", "d", "N"], janyas: [] },
+    { name: "34 Vagadheeswari", swaras: ["S", "g", "G", "m", "P", "D", "n"], janyas: [] },
+    { name: "35 Shulini", swaras: ["S", "g", "G", "m", "P", "D", "N"], janyas: [] },
+    { name: "36 Chalanata", swaras: ["S", "g", "G", "m", "P", "n", "N"], janyas: [
+        { name: "Nata", swaras: ["S", "g", "G", "m", "P", "N"] }
+    ]},
 
-    // Chakra 7: Rishi (r, R) - Prati Madhyamam (M)
-    "37 Salagam": ["S", "r", "R", "M", "P", "d", "D"],
-    "38 Jalarnavam": ["S", "r", "R", "M", "P", "d", "n"],
-    "39 Jhalavarali": ["S", "r", "R", "M", "P", "d", "N"],
-    "40 Navaneetam": ["S", "r", "R", "M", "P", "D", "n"],
-    "41 Pavani": ["S", "r", "R", "M", "P", "D", "N"],
-    "42 Raghupriya": ["S", "r", "R", "M", "P", "n", "N"],
+    // Chakra 7: Rishi (r, R)
+    { name: "37 Salagam", swaras: ["S", "r", "R", "M", "P", "d", "D"], janyas: [] },
+    { name: "38 Jalarnavam", swaras: ["S", "r", "R", "M", "P", "d", "n"], janyas: [] },
+    { name: "39 Jhalavarali", swaras: ["S", "r", "R", "M", "P", "d", "N"], janyas: [] },
+    { name: "40 Navaneetam", swaras: ["S", "r", "R", "M", "P", "D", "n"], janyas: [] },
+    { name: "41 Pavani", swaras: ["S", "r", "R", "M", "P", "D", "N"], janyas: [] },
+    { name: "42 Raghupriya", swaras: ["S", "r", "R", "M", "P", "n", "N"], janyas: [] },
 
     // Chakra 8: Vasu (r, g)
-    "43 Gavambhodi": ["S", "r", "g", "M", "P", "d", "D"],
-    "44 Bhavapriya": ["S", "r", "g", "M", "P", "d", "n"],
-    "45 Shubhapantuvarali": ["S", "r", "g", "M", "P", "d", "N"],
-    "46 Shadvidhamargini": ["S", "r", "g", "M", "P", "D", "n"],
-    "47 Suvarnangi": ["S", "r", "g", "M", "P", "D", "N"],
-    "48 Divyamani": ["S", "r", "g", "M", "P", "n", "N"],
+    { name: "43 Gavambhodi", swaras: ["S", "r", "g", "M", "P", "d", "D"], janyas: [] },
+    { name: "44 Bhavapriya", swaras: ["S", "r", "g", "M", "P", "d", "n"], janyas: [] },
+    { name: "45 Shubhapantuvarali", swaras: ["S", "r", "g", "M", "P", "d", "N"], janyas: [] },
+    { name: "46 Shadvidhamargini", swaras: ["S", "r", "g", "M", "P", "D", "n"], janyas: [] },
+    { name: "47 Suvarnangi", swaras: ["S", "r", "g", "M", "P", "D", "N"], janyas: [] },
+    { name: "48 Divyamani", swaras: ["S", "r", "g", "M", "P", "n", "N"], janyas: [] },
 
     // Chakra 9: Brahma (r, G)
-    "49 Dhavalambari": ["S", "r", "G", "M", "P", "d", "D"],
-    "50 Namanarayani": ["S", "r", "G", "M", "P", "d", "n"],
-    "51 Kamavardhani (Pantuvarali)": ["S", "r", "G", "M", "P", "d", "N"],
-    "52 Ramapriya": ["S", "r", "G", "M", "P", "D", "n"],
-    "53 Gamanashrama": ["S", "r", "G", "M", "P", "D", "N"],
-    "54 Vishwambari": ["S", "r", "G", "M", "P", "n", "N"],
+    { name: "49 Dhavalambari", swaras: ["S", "r", "G", "M", "P", "d", "D"], janyas: [] },
+    { name: "50 Namanarayani", swaras: ["S", "r", "G", "M", "P", "d", "n"], janyas: [] },
+    { name: "51 Kamavardhani (Pantuvarali)", swaras: ["S", "r", "G", "M", "P", "d", "N"], janyas: [] },
+    { name: "52 Ramapriya", swaras: ["S", "r", "G", "M", "P", "D", "n"], janyas: [] },
+    { name: "53 Gamanashrama", swaras: ["S", "r", "G", "M", "P", "D", "N"], janyas: [
+        { name: "Purvikalyani", swaras: ["S", "r", "G", "M", "P", "D", "P", "S", "S", "N", "D", "P", "M", "G", "r", "S"] }
+    ]},
+    { name: "54 Vishwambari", swaras: ["S", "r", "G", "M", "P", "n", "N"], janyas: [] },
 
     // Chakra 10: Disi (R, g)
-    "55 Shyamalangi": ["S", "R", "g", "M", "P", "d", "D"],
-    "56 Shanmukhapriya": ["S", "R", "g", "M", "P", "d", "n"],
-    "57 Simhendramadhyamam": ["S", "R", "g", "M", "P", "d", "N"],
-    "58 Hemavati": ["S", "R", "g", "M", "P", "D", "n"],
-    "59 Dharmavati": ["S", "R", "g", "M", "P", "D", "N"],
-    "60 Neetimati": ["S", "R", "g", "M", "P", "n", "N"],
+    { name: "55 Shyamalangi", swaras: ["S", "R", "g", "M", "P", "d", "D"], janyas: [] },
+    { name: "56 Shanmukhapriya", swaras: ["S", "R", "g", "M", "P", "d", "n"], janyas: [] },
+    { name: "57 Simhendramadhyamam", swaras: ["S", "R", "g", "M", "P", "d", "N"], janyas: [] },
+    { name: "58 Hemavati", swaras: ["S", "R", "g", "M", "P", "D", "n"], janyas: [] },
+    { name: "59 Dharmavati", swaras: ["S", "R", "g", "M", "P", "D", "N"], janyas: [
+        { name: "Ranjani", swaras: ["S", "R", "g", "M", "D", "S", "S", "N", "D", "M", "g", "S"] }
+    ]},
+    { name: "60 Neetimati", swaras: ["S", "R", "g", "M", "P", "n", "N"], janyas: [] },
 
     // Chakra 11: Rudra (R, G)
-    "61 Kantamani": ["S", "R", "G", "M", "P", "d", "D"],
-    "62 Rishabhapriya": ["S", "R", "G", "M", "P", "d", "n"],
-    "63 Latangi": ["S", "R", "G", "M", "P", "d", "N"],
-    "64 Vachaspati": ["S", "R", "G", "M", "P", "D", "n"],
-    "65 Mechakalyani (Kalyani)": ["S", "R", "G", "M", "P", "D", "N"],
-    "66 Chitrambari": ["S", "R", "G", "M", "P", "n", "N"],
+    { name: "61 Kantamani", swaras: ["S", "R", "G", "M", "P", "d", "D"], janyas: [] },
+    { name: "62 Rishabhapriya", swaras: ["S", "R", "G", "M", "P", "d", "n"], janyas: [] },
+    { name: "63 Latangi", swaras: ["S", "R", "G", "M", "P", "d", "N"], janyas: [] },
+    { name: "64 Vachaspati", swaras: ["S", "R", "G", "M", "P", "D", "n"], janyas: [
+        { name: "Saraswati", swaras: ["S", "R", "M", "P", "D", "S", "S", "n", "D", "P", "M", "R", "S"] }
+    ]},
+    { name: "65 Mechakalyani", swaras: ["S", "R", "G", "M", "P", "D", "N"], janyas: [
+        { name: "Amritavarshini", swaras: ["S", "G", "M", "P", "N"] },
+        { name: "Hamir Kalyani", swaras: ["S", "G", "P", "D", "N", "S", "S", "N", "D", "P", "M", "G", "M", "R", "S"] }
+    ]},
+    { name: "66 Chitrambari", swaras: ["S", "R", "G", "M", "P", "n", "N"], janyas: [] },
 
-    // Chakra 12: Aditya (g, G)
-    "67 Sucharitra": ["S", "g", "G", "M", "P", "d", "D"],
-    "68 Jyotiswarupini": ["S", "g", "G", "M", "P", "d", "n"],
-    "69 Dhatuvardhani": ["S", "g", "G", "M", "P", "d", "N"],
-    "70 Nasikabhushani": ["S", "g", "G", "M", "P", "D", "n"],
-    "71 Kosalam": ["S", "g", "G", "M", "P", "D", "N"],
-    "72 Rasikapriya": ["S", "g", "G", "M", "P", "n", "N"],
-
-    // --- Popular Janya Ragas ---
-    "[J] Mohanam": ["S", "R", "G", "P", "D"],
-    "[J] Hamsadhvani": ["S", "R", "G", "P", "N"],
-    "[J] Hindolam": ["S", "g", "m", "d", "n"],
-    "[J] Abhogi": ["S", "R", "g", "m", "D"],
-    "[J] Sriranjani": ["S", "R", "g", "m", "D", "n"],
-    "[J] Kambhoji": ["S", "R", "G", "m", "P", "D", "n", "N"], // Bhashanga (uses both Ni)
-    "[J] Bhairavi (Carnatic)": ["S", "R", "g", "m", "P", "d", "D", "n"], // Bhashanga (uses both Dha)
-    "[J] Anandabhairavi": ["S", "R", "g", "G", "m", "P", "d", "n"], // Bhashanga
-    "[J] Vasantha": ["S", "G", "m", "d", "N"],
-    "[J] Bowli": ["S", "r", "G", "P", "d"],
-    "[J] Malahari": ["S", "r", "m", "P", "d"],
-    "[J] Bilahari": ["S", "R", "G", "P", "D", "N"],
-    "[J] Madhyamavati": ["S", "R", "m", "P", "n"],
-    "[J] Arabhi": ["S", "R", "m", "P", "D"],
-    "[J] Kedaragowla": ["S", "R", "m", "P", "n"]
-};
+    // Chakra 12: Aditya (g, G) // Fixed swara map for visualization
+    { name: "67 Sucharitra", swaras: ["S", "g", "G", "M", "P", "d", "D"], janyas: [] },
+    { name: "68 Jyoti Swarupini", swaras: ["S", "g", "G", "M", "P", "d", "n"], janyas: [] },
+    { name: "69 Dhatuvardhani", swaras: ["S", "g", "G", "M", "P", "d", "N"], janyas: [] },
+    { name: "70 Nasikabhushani", swaras: ["S", "g", "G", "M", "P", "D", "n"], janyas: [] },
+    { name: "71 Kosalam", swaras: ["S", "g", "G", "M", "P", "D", "N"], janyas: [] },
+    { name: "72 Rasikapriya", swaras: ["S", "g", "G", "M", "P", "n", "N"], janyas: [] }
+];
