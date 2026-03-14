@@ -40,6 +40,30 @@ let pitchWorkletNode = null;
 let workletDetection = { pitch: -1, confidence: 0, timestamp: 0 }; // Latest result from worklet
 let lastProcessedTimestamp = 0;
 
+// ═══ Eager AudioContext initialization (mobile fix) ═══
+// Mobile browsers require a user gesture to unlock the AudioContext.
+// We listen for the very first touch/click on the page and init it then,
+// so that when the user later interacts with the harmonium or shruti petti,
+// the context is already running — no race conditions.
+function initAudioContextEagerly() {
+    if (!window.sharedAudioContext) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        window.sharedAudioContext = new AC({ sampleRate: 44100 });
+    }
+    if (window.sharedAudioContext.state === 'suspended') {
+        window.sharedAudioContext.resume();
+    }
+    // Pre-initialize the Harmonium synth so it's ready when keys are pressed
+    if (window.Harmonium && window.Harmonium.init) {
+        window.Harmonium.init();
+    }
+    // Remove listeners after first activation
+    document.removeEventListener('touchstart', initAudioContextEagerly, true);
+    document.removeEventListener('mousedown', initAudioContextEagerly, true);
+}
+document.addEventListener('touchstart', initAudioContextEagerly, { capture: true, passive: true });
+document.addEventListener('mousedown', initAudioContextEagerly, { capture: true, passive: true });
+
 // Visualization & State
 let animationId;
 const pitchHistory = []; // stores { pitch, time }
@@ -1954,6 +1978,7 @@ function addHarmoniumEvents(keyEl, midi) {
     // Touch Events
     keyEl.addEventListener('touchstart', (e) => {
         e.preventDefault(); // Prevent scrolling while playing
+        currentGlideMidi = midi; // Track for glide
         triggerHarmoniumPlay(midi);
     }, { passive: false });
 
@@ -1966,6 +1991,67 @@ function addHarmoniumEvents(keyEl, midi) {
         e.preventDefault();
         triggerHarmoniumStop(midi);
     }, { passive: false });
+}
+
+// ═══ Touch Glide Support (Mobile) ═══
+// Tracks the currently playing MIDI note under the finger so that
+// sliding across keys plays them like a real harmonium glissando.
+let currentGlideMidi = null;
+
+const pianoKeyboardEl = document.getElementById('pianoKeyboard');
+if (pianoKeyboardEl) {
+    pianoKeyboardEl.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        if (!touch) return;
+        
+        // Find the element under the touch point
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (!el) return;
+        
+        // Walk up to find the key element (it might be a child label)
+        const keyEl = el.closest('.key-white, .key-black');
+        if (!keyEl || !keyEl.dataset.midi) {
+            // Finger moved off the keyboard — stop current note
+            if (currentGlideMidi !== null) {
+                triggerHarmoniumStop(currentGlideMidi);
+                currentGlideMidi = null;
+            }
+            return;
+        }
+        
+        const midi = parseInt(keyEl.dataset.midi, 10);
+        
+        // If already playing this key, nothing to do
+        if (midi === currentGlideMidi) return;
+        
+        // Stop the previous note and start the new one
+        if (currentGlideMidi !== null) {
+            triggerHarmoniumStop(currentGlideMidi);
+        }
+        currentGlideMidi = midi;
+        triggerHarmoniumPlay(midi);
+    }, { passive: false });
+    
+    // Reset glide state when touch ends
+    pianoKeyboardEl.addEventListener('touchend', () => {
+        if (currentGlideMidi !== null) {
+            triggerHarmoniumStop(currentGlideMidi);
+            currentGlideMidi = null;
+        }
+    });
+    
+    pianoKeyboardEl.addEventListener('touchcancel', () => {
+        if (currentGlideMidi !== null) {
+            triggerHarmoniumStop(currentGlideMidi);
+            currentGlideMidi = null;
+        }
+    });
+}
+
+// Track glide from per-key touchstart too
+function setGlideMidi(midi) {
+    currentGlideMidi = midi;
 }
 
 function triggerHarmoniumPlay(midi) {
@@ -1995,11 +2081,15 @@ function triggerHarmoniumPlay(midi) {
         }
 
         const frequency = saFreq * exactRatio * Math.pow(2, octaveOffset);
-        window.Harmonium.playNote(midi, frequency);
         
+        // Highlight immediately (sync) for instant feedback
         if (keyElements[midi]) {
             keyElements[midi].classList.add('playing');
         }
+        
+        // playNote is async but we fire-and-forget — AudioContext is already
+        // running thanks to the eager init on first user gesture
+        window.Harmonium.playNote(midi, frequency);
     }
 }
 

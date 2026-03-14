@@ -40,10 +40,11 @@ const Harmonium = (function() {
                 }
                 audioCtx = window.sharedAudioContext;
                 
-                if (audioCtx.state === 'suspended') {
-                    // Start the audio context
-                    await audioCtx.resume();
-                }
+                // NOTE: We intentionally do NOT await audioCtx.resume() here.
+                // On mobile, resume() only resolves during a direct user gesture.
+                // If we await it here (from a fire-and-forget context), it may
+                // never resolve, blocking init forever. Instead, resume() is
+                // called in playNote() after oscillators are created.
 
                 // Master output for harmonium
                 masterGain = audioCtx.createGain();
@@ -98,8 +99,13 @@ const Harmonium = (function() {
 
     async function playNote(midiKey, frequency) {
         if (!isInitialized) await init();
+        
+        // Resume the AudioContext if suspended (must happen in user gesture context)
         if (audioCtx && audioCtx.state === 'suspended') {
-             await audioCtx.resume();
+            // Fire-and-forget: oscillators are created below and will start producing
+            // sound as soon as the context resumes. We don't await because we need
+            // the oscillators to be in activeNotes BEFORE touchend fires.
+            audioCtx.resume();
         }
         
         console.log(`Playing Harmonium Note: MIDI ${midiKey}, Freq: ${frequency.toFixed(2)} Hz`);
@@ -248,6 +254,7 @@ const Harmonium = (function() {
     }
 
     return {
+        init,
         playNote,
         stopNote,
         stopAll
