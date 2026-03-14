@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/main_app_view.png" alt="Shruti Monitor" width="100%">
+  <img src="docs/hero_screenshot.png" alt="Shruti Monitor – Real-time pitch tracking for Indian classical music" width="100%">
 </p>
 
 <h1 align="center">🎵 Shruti Monitor</h1>
@@ -134,7 +134,7 @@ Shruti Monitor uses the **McLeod Pitch Method (MPM)**, specifically chosen for m
 
 1. **Open** the application in a modern browser (Chrome, Edge, or Firefox recommended)
 2. **Allow** microphone access when prompted
-3. **Set your Sa** — Click the Base Sa button to choose your tonic (e.g., C4 at 261.63 Hz)
+3. **Set your Sa** — Click the Base Sa button to choose your tonic (e.g., C3 at 130.81 Hz)
 4. **Start Microphone** — Click the button in the top-right
 5. **Sing or play** — Watch your pitch appear on the graph in real time
 

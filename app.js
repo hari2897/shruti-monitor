@@ -1766,9 +1766,9 @@ function stopShrutiPetti() {
         { name: 'B',  base: 30.8677 }
     ];
 
-    let currentOctave = 4;
+    let currentOctave = 3;
     let selectedNote = 'C';
-    let selectedOctave = 4;
+    let selectedOctave = 3;
 
     function getFreq(note, octave) {
         return +(note.base * Math.pow(2, octave)).toFixed(2);
