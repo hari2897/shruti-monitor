@@ -18,14 +18,19 @@ const pitchSliderMarker = document.getElementById('pitchSliderMarker');
 const sliderEdgeLeft = document.getElementById('sliderEdgeLeft');
 const sliderEdgeRight = document.getElementById('sliderEdgeRight');
 const autoScrollToggle = document.getElementById('autoScrollToggle');
+const zoomIndicator = document.getElementById('zoomIndicator');
+const snapToLiveBtn = document.getElementById('snapToLiveBtn');
 
 const systemSelect = document.getElementById('systemSelect');
 const ragaSearch = document.getElementById('ragaSearch');
 const ragaSelect = document.getElementById('ragaSelect');
 const tanpuraToggle = document.getElementById('tanpuraToggle');
 const tanpuraString = document.getElementById('tanpuraString');
-const recordButton = document.getElementById('recordButton');
-const playButton = document.getElementById('playButton');
+const sessionTimerDisplay = document.getElementById('sessionTimerDisplay');
+const sessionRecordBtn = document.getElementById('sessionRecordBtn');
+const sessionStopBtn = document.getElementById('sessionStopBtn');
+const sessionPlayBtn = document.getElementById('sessionPlayBtn');
+const sessionDownloadBtn = document.getElementById('sessionDownloadBtn');
 const playbackAudio = document.getElementById('playbackAudio');
 const shrutiPettiButtons = document.getElementById('shrutiPettiButtons');
 
@@ -34,11 +39,21 @@ let audioContext;
 let analyser;
 let micStream;
 let dataArray;
-let isRecording = false;
+let isRecording = false; // Microphone monitoring active
 let useWorklet = false; // true if AudioWorklet is active
 let pitchWorkletNode = null;
 let workletDetection = { pitch: -1, confidence: 0, timestamp: 0 }; // Latest result from worklet
 let lastProcessedTimestamp = 0;
+
+// Session Recording State
+let mediaRecorder = null;
+let recordedChunks = [];
+let audioBlobUrl = null;
+let isSessionRecording = false;
+let isPlayingBack = false;
+let recordingStartTime = 0;
+let sessionPitchData = []; // Array of { timeMs, pitch }
+let sessionTimerInterval = null;
 
 // ═══ Eager AudioContext initialization (mobile fix) ═══
 // Mobile browsers require a user gesture to unlock the AudioContext.
@@ -73,7 +88,17 @@ let octaveErrorCount = 0; // frames of consecutive massive jumps
 let canvasWidth, canvasHeight;
 
 // Maximum time window visible on screen (ms)
-const TIME_WINDOW_MS = 5000;
+const BASE_TIME_WINDOW_MS = 5000;
+const MAX_HISTORY_MS = 600000; // 10 minutes maximum history stored
+
+// X-Axis Scroll and Zoom State
+let currentZoomLevelX = 1.0;
+let targetZoomLevelX = 1.0;
+const ZOOM_X_MIN = 0.5;
+const ZOOM_X_MAX = 5.0;
+
+let currentScrollX = 0; // ms offset into the past
+let targetScrollX = 0;
 
 // Auto-Scroll State
 let currentYOffsetLog2 = 0;
@@ -216,21 +241,21 @@ const canvasObserver = new ResizeObserver(() => {
 });
 canvasObserver.observe(document.querySelector('.canvas-container'));
 
-// ── Vertical Scroll and Zoom Logic ──
+// ── Vertical & Horizontal Scroll / Zoom Logic ──
 
 const container = document.querySelector('.canvas-container');
 let lastTouchY = 0;
-let initialPinchDistance = null;
-let initialZoomValue = null;
+let lastTouchX = 0;
+let initialPinchDistanceX = null;
+let initialZoomLevelX = null;
+let isStylusOrMouseDragging = false;
 
-function getPinchDistance(touches) {
-    const dx = touches[0].clientX - touches[1].clientX;
-    const dy = touches[0].clientY - touches[1].clientY;
-    return Math.sqrt(dx * dx + dy * dy);
+function getPinchDistanceX(touches) {
+    // Zoom focuses exclusively on time-axis horizontal width
+    return Math.abs(touches[0].clientX - touches[1].clientX);
 }
 
 function applyManualScroll(amount) {
-
     targetYOffsetLog2 += amount;
     
     // If the animation loop is not running, we must manually update the graphics
@@ -248,52 +273,101 @@ function applyManualScroll(amount) {
     }
 }
 
+function applyHorizontalScroll(amountMs) {
+    targetScrollX += amountMs;
+    if (targetScrollX < 0) targetScrollX = 0;
+    if (targetScrollX > MAX_HISTORY_MS) targetScrollX = MAX_HISTORY_MS;
+}
+
+function updateZoomIndicatorUI() {
+    if (zoomIndicator) {
+        zoomIndicator.textContent = `Zoom: ${targetZoomLevelX.toFixed(1)}x`;
+        if (targetZoomLevelX === 1.0) zoomIndicator.classList.add('hidden');
+        else zoomIndicator.classList.remove('hidden');
+    }
+}
+
+// Mouse events for desktop horizontal drag
+container.addEventListener('mousedown', (e) => {
+    isStylusOrMouseDragging = true;
+    lastTouchX = e.clientX;
+});
+window.addEventListener('mouseup', () => {
+    isStylusOrMouseDragging = false;
+});
+window.addEventListener('mousemove', (e) => {
+    if (isStylusOrMouseDragging) {
+        const deltaX = lastTouchX - e.clientX;
+        lastTouchX = e.clientX;
+        const msPerPixel = (BASE_TIME_WINDOW_MS / targetZoomLevelX) / canvasWidth;
+        applyHorizontalScroll(deltaX * msPerPixel);
+    }
+});
+
+// Wheel zoom/scroll
 container.addEventListener('wheel', (e) => {
-    if (!autoScrollToggle.checked) {
-        e.preventDefault();
-        // Mouse wheel scroll sensitivity
-        const scrollAmount = e.deltaY * 0.001 * (zoomInput ? parseFloat(zoomInput.value) : 1);
-        applyManualScroll(-scrollAmount); // Reversed direction
+    e.preventDefault();
+    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+        // X-Axis Zoom (horizontal pinch on trackpad or ctrl+wheel)
+        let zoomChange = e.deltaY * -0.005;
+        targetZoomLevelX += zoomChange;
+        targetZoomLevelX = Math.max(ZOOM_X_MIN, Math.min(targetZoomLevelX, ZOOM_X_MAX));
+        updateZoomIndicatorUI();
+    } else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        // X-Axis Scroll (horizontal trackpad scroll)
+        const msPerPixel = (BASE_TIME_WINDOW_MS / targetZoomLevelX) / canvasWidth;
+        applyHorizontalScroll(e.deltaX * msPerPixel);
+    } else {
+        // Y-Axis Scroll
+        if (!autoScrollToggle.checked) {
+            const scrollAmount = e.deltaY * 0.001 * (zoomInput ? parseFloat(zoomInput.value) : 1);
+            applyManualScroll(-scrollAmount); // Reversed direction
+        }
     }
 }, { passive: false });
 
 container.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 1 && !autoScrollToggle.checked) {
-        lastTouchY = e.touches[0].clientY;
+    if (e.touches.length === 1) {
+        lastTouchX = e.touches[0].clientX;
+        if (!autoScrollToggle.checked) {
+            lastTouchY = e.touches[0].clientY;
+        }
     } else if (e.touches.length === 2) {
-        // Start pinch-to-zoom
-        initialPinchDistance = getPinchDistance(e.touches);
-        initialZoomValue = parseFloat(zoomInput.value);
+        initialPinchDistanceX = getPinchDistanceX(e.touches);
+        // Avoid division by zero initially by adding a tiny threshold or just bounding it
+        initialPinchDistanceX = Math.max(initialPinchDistanceX, 10);
+        initialZoomLevelX = targetZoomLevelX;
     }
 }, { passive: true });
 
 container.addEventListener('touchmove', (e) => {
-    if (e.touches.length === 1 && !autoScrollToggle.checked) {
-        const currentY = e.touches[0].clientY;
-        const deltaY = lastTouchY - currentY;
-        lastTouchY = currentY;
-
-        // Touch scroll sensitivity
-        const scrollAmount = (deltaY / canvasHeight) * (MAX_RATIO_LOG2 - MIN_RATIO_LOG2);
-        applyManualScroll(-scrollAmount); // Reversed direction
-        e.preventDefault(); // Prevent page pull-down
-    } else if (e.touches.length === 2) {
-        // Handle pinch-to-zoom
-        const currentPinchDistance = getPinchDistance(e.touches);
-        if (initialPinchDistance) {
-            const scale = initialPinchDistance / currentPinchDistance;
-            
-            // Calculate new zoom value based on scale, bounded by input limits
-            let newZoom = initialZoomValue * scale;
-            const minZ = parseFloat(zoomInput.min);
-            const maxZ = parseFloat(zoomInput.max);
-            newZoom = Math.max(minZ, Math.min(newZoom, maxZ));
-            
-            // Update the slider value and dispatch event to reuse existing zoom logic
-            if (zoomInput.value !== newZoom.toFixed(2)) {
-                zoomInput.value = newZoom.toFixed(2);
-                zoomInput.dispatchEvent(new Event('input'));
+    if (e.touches.length === 1) {
+        // Horizontal Drag
+        const currentX = e.touches[0].clientX;
+        const deltaX = lastTouchX - currentX;
+        lastTouchX = currentX;
+        
+        const msPerPixel = (BASE_TIME_WINDOW_MS / targetZoomLevelX) / canvasWidth;
+        applyHorizontalScroll(deltaX * msPerPixel);
+        
+        // Vertical Drag
+        if (!autoScrollToggle.checked) {
+            const currentY = e.touches[0].clientY;
+            if (lastTouchY) {
+               const deltaY = lastTouchY - currentY;
+               const scrollAmount = (deltaY / canvasHeight) * (MAX_RATIO_LOG2 - MIN_RATIO_LOG2);
+               applyManualScroll(-scrollAmount); 
             }
+            lastTouchY = currentY;
+            e.preventDefault(); // Prevent page pull-down
+        }
+    } else if (e.touches.length === 2) {
+        // Pinch-to-Zoom X-Axis
+        const currentPinchDistanceX = getPinchDistanceX(e.touches);
+        if (initialPinchDistanceX) {
+            const scale = currentPinchDistanceX / initialPinchDistanceX;
+            targetZoomLevelX = Math.max(ZOOM_X_MIN, Math.min(initialZoomLevelX * scale, ZOOM_X_MAX));
+            updateZoomIndicatorUI();
             e.preventDefault();
         }
     }
@@ -301,12 +375,22 @@ container.addEventListener('touchmove', (e) => {
 
 container.addEventListener('touchend', (e) => {
     if (e.touches.length < 2) {
-        initialPinchDistance = null;
+        initialPinchDistanceX = null;
     }
-    if (e.touches.length === 1 && !autoScrollToggle.checked) {
-        lastTouchY = e.touches[0].clientY;
+    if (e.touches.length === 1) {
+        lastTouchX = e.touches[0].clientX;
+        if (!autoScrollToggle.checked) lastTouchY = e.touches[0].clientY;
     }
 });
+
+// Snap to Live Button logic
+if (snapToLiveBtn) {
+    snapToLiveBtn.addEventListener('click', () => {
+        targetScrollX = 0;
+        targetZoomLevelX = 1.0;
+        updateZoomIndicatorUI();
+    });
+}
 
 // Pitch mapping function (Raw physical pixels from static bounds)
 function ratioToYRaw(log2Value) {
@@ -739,30 +823,55 @@ function updateClosestSwara(pitch, saFreq) {
 
 // Render Loop
 function draw() {
-    if (!isRecording) return;
+    if (!isRecording && !isPlayingBack) return;
     animationId = requestAnimationFrame(draw);
 
     const saFreq = parseFloat(saFreqInput.value);
+    const now = performance.now();
     
-    // Perform pitch detection
-    // Prefer AudioWorklet result (updated asynchronously) over main-thread MPM
-    let detection = null;
-    let isNewDetection = false;
-    
-    if (useWorklet) {
-        if (workletDetection.timestamp !== lastProcessedTimestamp) {
-            detection = workletDetection;
-            lastProcessedTimestamp = workletDetection.timestamp;
-            isNewDetection = true;
+    if (isPlayingBack) {
+        // --- PLAYBACK SYNC ---
+        const playbackTimeMs = playbackAudio.currentTime * 1000;
+        
+        let currentIndex = 0;
+        for (let i = 0; i < sessionPitchData.length; i++) {
+            if (sessionPitchData[i].timeMs <= playbackTimeMs) {
+                currentIndex = i;
+            } else {
+                break;
+            }
+        }
+        
+        const currentData = sessionPitchData[currentIndex];
+        smoothedPitch = currentData ? currentData.pitch : null;
+        
+        // Reconstruct pitchHistory to mock live view seamlessly
+        pitchHistory.length = 0;
+        for (let i = currentIndex; i >= 0; i--) {
+            const data = sessionPitchData[i];
+            if (data.timeMs < playbackTimeMs - MAX_HISTORY_MS) break;
+            const mockTime = now - (playbackTimeMs - data.timeMs);
+            pitchHistory.unshift({ pitch: data.pitch, time: mockTime });
         }
     } else {
-        // Fallback: run MPM on main thread via analyser
-        analyser.getFloatTimeDomainData(dataArray);
-        detection = detectPitchMPM(dataArray, audioContext.sampleRate);
-        isNewDetection = true;
-    }
-    
-    const now = performance.now();
+        // --- LIVE MICROPHONE MODE ---
+        // Perform pitch detection
+        // Prefer AudioWorklet result (updated asynchronously) over main-thread MPM
+        let detection = null;
+        let isNewDetection = false;
+        
+        if (useWorklet) {
+            if (workletDetection.timestamp !== lastProcessedTimestamp) {
+                detection = workletDetection;
+                lastProcessedTimestamp = workletDetection.timestamp;
+                isNewDetection = true;
+            }
+        } else {
+            // Fallback: run MPM on main thread via analyser
+            analyser.getFloatTimeDomainData(dataArray);
+            detection = detectPitchMPM(dataArray, audioContext.sampleRate);
+            isNewDetection = true;
+        }
     
     if (isNewDetection) {
         if (detection.pitch !== -1) {
@@ -817,12 +926,25 @@ function draw() {
             // smoothedPitch = kalmanFilter.pitch;
         }
     }
+    
+    // Close the LIVE MICROPHONE MODE 'else' block
+    }
 
-    pitchHistory.push({ pitch: smoothedPitch, time: now });
+    // Live mode recording and history update
+    if (!isPlayingBack) {
+        pitchHistory.push({ pitch: smoothedPitch, time: now });
 
-    // Clean up old history
-    while (pitchHistory.length > 0 && now - pitchHistory[0].time > TIME_WINDOW_MS) {
-        pitchHistory.shift();
+        // Clean up old history
+        while (pitchHistory.length > 0 && now - pitchHistory[0].time > MAX_HISTORY_MS) {
+            pitchHistory.shift();
+        }
+        
+        if (isSessionRecording) {
+            sessionPitchData.push({
+                timeMs: now - recordingStartTime,
+                pitch: smoothedPitch
+            });
+        }
     }
 
     // UI Updates
@@ -917,6 +1039,19 @@ function draw() {
     // This now runs even when auto-follow is off, allowing manual scroll targets to be reached
     currentYOffsetLog2 += (targetYOffsetLog2 - currentYOffsetLog2) * 0.1; 
 
+    // Smooth X-Axis zoom and scroll
+    currentZoomLevelX += (targetZoomLevelX - currentZoomLevelX) * 0.15;
+    currentScrollX += (targetScrollX - currentScrollX) * 0.15;
+    
+    // UI Update for Snap Button
+    if (snapToLiveBtn) {
+        if (targetScrollX > 100) {
+            snapToLiveBtn.classList.remove('hidden');
+        } else {
+            snapToLiveBtn.classList.add('hidden');
+        }
+    }
+
     
     // Apply CSS Translation to the Y-Axis Labels Container
     // We calculate how many pixels one 'log unit' represents on screen and scale the offset
@@ -956,7 +1091,18 @@ function draw() {
             const pt = pitchHistory[i];
             // Map time to X (right to left)
             const ageMs = now - pt.time;
-            const x = canvasWidth - (ageMs / TIME_WINDOW_MS) * canvasWidth;
+            
+            // X-Axis Scroll and Zoom mapping
+            const visibleWindowMs = BASE_TIME_WINDOW_MS / currentZoomLevelX;
+            const shiftedAgeMs = ageMs - currentScrollX;
+            
+            // Performance optimization: skip off-screen points
+            if (shiftedAgeMs < -200 || shiftedAgeMs > visibleWindowMs + 200) {
+               isDrawing = false;
+               continue;
+            }
+
+            const x = canvasWidth - (shiftedAgeMs / visibleWindowMs) * canvasWidth;
 
             if (pt.pitch !== null) {
                 const ratio = pt.pitch / saFreq;
@@ -1033,6 +1179,7 @@ async function startAudio() {
         isRecording = true;
         startButton.textContent = 'Stop Microphone';
         startButton.classList.add('recording');
+        sessionRecordBtn.disabled = false;
         
         if (audioContext.state === 'suspended') {
             await audioContext.resume();
@@ -1046,6 +1193,7 @@ async function startAudio() {
 }
 
 function stopAudio() {
+    stopSessionRecording();
     isRecording = false;
     cancelAnimationFrame(animationId);
     
@@ -1076,6 +1224,7 @@ function stopAudio() {
     
     // Clear line, keep grid
     drawGrid();
+    sessionRecordBtn.disabled = true;
 }
 
 startButton.addEventListener('click', () => {
@@ -1085,6 +1234,143 @@ startButton.addEventListener('click', () => {
         startAudio();
     }
 });
+
+// --- Session Recording & Playback ---
+
+function updateTimerDisplay(ms) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const m = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+    const s = String(totalSeconds % 60).padStart(2, '0');
+    if (sessionTimerDisplay) sessionTimerDisplay.textContent = `${m}:${s}`;
+}
+
+function startSessionRecording() {
+    if (!micStream || isSessionRecording || isPlayingBack) return;
+    
+    // Clear previous
+    sessionPitchData = [];
+    if (audioBlobUrl) {
+        URL.revokeObjectURL(audioBlobUrl);
+        audioBlobUrl = null;
+    }
+    recordedChunks = [];
+    
+    let options = { mimeType: 'audio/webm' };
+    if (!MediaRecorder.isTypeSupported('audio/webm')) {
+        options = {}; // fallback to default
+    }
+    
+    mediaRecorder = new MediaRecorder(micStream, options);
+    
+    mediaRecorder.ondataavailable = e => {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+    };
+    
+    mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(recordedChunks, { type: options.mimeType || 'audio/webm' });
+        audioBlobUrl = URL.createObjectURL(audioBlob);
+        playbackAudio.src = audioBlobUrl;
+        
+        // Enable Play and Download
+        sessionPlayBtn.disabled = false;
+        sessionDownloadBtn.href = audioBlobUrl;
+        sessionDownloadBtn.classList.remove('disabled');
+        sessionDownloadBtn.classList.remove('hidden');
+    };
+    
+    isSessionRecording = true;
+    recordingStartTime = performance.now();
+    mediaRecorder.start(100);
+    
+    // UI
+    sessionRecordBtn.classList.add('recording');
+    sessionTimerDisplay.classList.add('active-record');
+    sessionRecordBtn.disabled = true;
+    sessionStopBtn.disabled = false;
+    sessionPlayBtn.disabled = true;
+    
+    // Timer
+    updateTimerDisplay(0);
+    sessionTimerInterval = setInterval(() => {
+        updateTimerDisplay(performance.now() - recordingStartTime);
+    }, 1000);
+}
+
+function stopSessionRecording() {
+    if (isSessionRecording && mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+        isSessionRecording = false;
+        
+        clearInterval(sessionTimerInterval);
+        
+        sessionRecordBtn.classList.remove('recording');
+        sessionTimerDisplay.classList.remove('active-record');
+        sessionRecordBtn.disabled = false;
+        sessionStopBtn.disabled = true;
+    }
+    
+    if (isPlayingBack) {
+        playbackAudio.pause();
+        playbackAudio.currentTime = 0;
+        isPlayingBack = false;
+        
+        clearInterval(sessionTimerInterval);
+        
+        sessionPlayBtn.classList.remove('playing');
+        sessionTimerDisplay.classList.remove('active-play');
+        sessionRecordBtn.disabled = !isRecording; // Enable record if mic is on
+        sessionStopBtn.disabled = true;
+        updateTimerDisplay(0);
+        
+        // Coast UI
+        pitchDisplay.textContent = '-- Hz';
+        swaraAbbr.textContent = '--';
+        swaraName.innerHTML = '&nbsp;';
+        swaraOctave.innerHTML = '&nbsp;';
+        deviationDisplay.textContent = '';
+        deviationDisplay.style.color = 'var(--text-muted)';
+        updateKeyboard(null, saFreqInput.value);
+        
+        if (isRecording) {
+            pitchHistory.length = 0;
+        } else {
+            drawGrid();
+        }
+    }
+}
+
+function replaySession() {
+    if (!audioBlobUrl || isSessionRecording) return;
+    
+    isPlayingBack = true;
+    playbackAudio.currentTime = 0;
+    playbackAudio.play();
+    
+    sessionPlayBtn.classList.add('playing');
+    sessionTimerDisplay.classList.add('active-play');
+    sessionRecordBtn.disabled = true;
+    sessionStopBtn.disabled = false;
+    
+    // Timer
+    clearInterval(sessionTimerInterval);
+    sessionTimerInterval = setInterval(() => {
+        updateTimerDisplay(playbackAudio.currentTime * 1000);
+    }, 100);
+    
+    // Re-trigger draw loop if it was suspended
+    if (!isRecording) {
+        cancelAnimationFrame(animationId);
+        draw(); 
+    }
+}
+
+playbackAudio.addEventListener('ended', () => {
+    stopSessionRecording(); // Stop playback
+});
+
+sessionRecordBtn.addEventListener('click', startSessionRecording);
+sessionStopBtn.addEventListener('click', stopSessionRecording);
+sessionPlayBtn.addEventListener('click', replaySession);
 
 // --- Tanpura Synthesizer (Additive Synthesis + Jawari Envelope) ---
 // Each string is a bank of N harmonics with time-varying amplitude

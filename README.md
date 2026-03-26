@@ -57,9 +57,14 @@ Instantly displays the detected swara in either **Hindustani** or **Carnatic** n
 
 ### 📊 Live Pitch Graph
 A continuously scrolling canvas visualization plots your pitch trajectory over time against Just Intonation swara lines. Features:
-- **Auto-Follow Voice** mode that keeps your pitch centered
-- **Pinch-to-Zoom** for detailed analysis
-- **Vertical scrolling** for exploring the full range
+- **Auto-Follow Voice** mode that keeps your pitch centered vertically
+- **Horizontal History Scrolling**, allowing you to continuously drag backward up to 10 minutes in the past
+- **Pinch-to-Zoom** across the time axis (X-axis) for intricate detail analysis of gamakas
+- **Snap to Live** button to instantly snap back to real-time from the past
+- **Vertical scrolling** for exploring the full octave range
+
+### 🔴 Session Record & Replay
+Record your practice sessions directly in the browser! Once recorded, you can seamlessly replay your audio with mathematically synchronized pitch graphing—allowing you to meticulously review your shruti accuracy after singing. You can also download the audio file directly.
 
 ### 🎚️ Pitch Slider
 A horizontal bar showing your current pitch position relative to surrounding swaras — perfect for quick glances while performing.
