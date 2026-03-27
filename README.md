@@ -93,6 +93,9 @@ An extensive searchable modal with **Hindustani** and **Carnatic** ragas:
 ### 📱 Responsive UI
 Fully responsive design that works on mobile, tablet, and desktop. On mobile, controls are hidden behind a slide-up drawer to maximize the pitch visualization area.
 
+### 📲 Progressive Web App (PWA)
+Install Shruti Monitor directly to your home screen on any device — no app store required. The service worker caches all assets for **full offline support**, so you can practice anywhere without an internet connection.
+
 ---
 
 ## 🔬 How It Works
@@ -212,6 +215,7 @@ All pitch calculations use pure frequency ratios relative to Sa:
 | **Audio Capture** | Web Audio API + AudioWorklet |
 | **Pitch Detection** | McLeod Pitch Method (custom implementation) |
 | **Sound Synthesis** | PeriodicWave oscillators (tanpura, shruti petti, keyboard) |
+| **PWA / Offline** | Service Worker + Web App Manifest |
 | **Typography** | Google Fonts (Cinzel, Hind, Inter) |
 | **Deployment** | GitHub Pages (static files, zero dependencies) |
 

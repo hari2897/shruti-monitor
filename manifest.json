@@ -1,0 +1,32 @@
+{
+  "name": "Shruti Monitor – Indian Classical Pitch Tracker",
+  "short_name": "Shruti Monitor",
+  "description": "Real-time Just Intonation pitch tracker for Indian Classical music practice with tanpura drone, raga selection, and spectrogram visualization.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0d0907",
+  "background_color": "#0d0907",
+  "categories": ["music", "education", "utilities"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

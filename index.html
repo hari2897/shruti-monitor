@@ -5,6 +5,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shruti Monitor – Indian Classical Music Pitch Tracker</title>
+    <meta name="description" content="Real-time Just Intonation pitch tracker for Indian Classical music practice with tanpura drone, raga selection, and spectrogram visualization.">
+
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0d0907">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-180.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Shruti Monitor">
+
     <link rel="stylesheet" href="style.css">
     <link
         href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Hind:wght@400;500;600;700&family=Inter:wght@400;500;700&display=swap"
@@ -297,6 +308,17 @@
     <script src="hindustani_data.js"></script>
     <script src="harmonium.js"></script>
     <script src="app.js"></script>
+
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then((reg) => console.log('[PWA] Service Worker registered, scope:', reg.scope))
+                    .catch((err) => console.warn('[PWA] Service Worker registration failed:', err));
+            });
+        }
+    </script>
 </body>
 
 </html>
